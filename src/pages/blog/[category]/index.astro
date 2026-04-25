@@ -1,5 +1,4 @@
 ---
-import { Image } from 'astro:assets';
 import { getCollection } from 'astro:content';
 import BaseHead from '../../../components/BaseHead.astro';
 import Footer from '../../../components/Footer.astro';
@@ -9,31 +8,53 @@ import { SITE_DESCRIPTION, SITE_TITLE } from '../../../consts';
 
 export async function getStaticPaths() {
 	const posts = await getCollection('blog');
-	
-	// 获取所有分类
-	const categories = new Set<string>();
+
+	// 收集所有一级目录
+	const topCategories = new Map<string, typeof posts>();
 	posts.forEach((post) => {
-		const parts = post.id.split('/');
-		if (parts.length > 1) {
-			categories.add(parts[0]);
-		}
+		const top = post.id.split('/')[0];
+		if (!topCategories.has(top)) topCategories.set(top, []);
+		topCategories.get(top)!.push(post);
 	});
-	
-	return Array.from(categories).map((category) => ({
-		params: { category },
-	}));
+
+	return Array.from(topCategories.entries()).map(([category, catPosts]) => {
+		// 检查是否有子分类（post.id 有 3+ 级路径）
+		const subCategoryMap = new Map<string, typeof posts>();
+		const directPosts: typeof posts = [];
+
+		catPosts.forEach((post) => {
+			const parts = post.id.split('/');
+			if (parts.length > 2) {
+				// 有子分类
+				const sub = parts[1];
+				if (!subCategoryMap.has(sub)) subCategoryMap.set(sub, []);
+				subCategoryMap.get(sub)!.push(post);
+			} else {
+				directPosts.push(post);
+			}
+		});
+
+		const subCategories = Array.from(subCategoryMap.entries())
+			.map(([name, posts]) => ({ name, count: posts.length }))
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		return {
+			params: { category },
+			props: {
+				subCategories,
+				directPosts: directPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()),
+			},
+		};
+	});
 }
 
 const { category } = Astro.params;
-
-const posts = await getCollection('blog');
-const categoryPosts = posts
-	.filter((post) => post.id.startsWith(`${category}/`))
-	.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const { subCategories, directPosts } = Astro.props;
+const hasSubCategories = subCategories.length > 0;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<BaseHead title={`${category} | ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
 		<style>
@@ -45,59 +66,101 @@ const categoryPosts = posts
 			}
 			.back-link {
 				display: inline-block;
-				margin-bottom: 1rem;
+				margin-bottom: 0.5rem;
 				color: rgb(var(--gray));
 				text-decoration: none;
-				font-size: 0.875rem;
+				font-size: 0.85rem;
 			}
 			.back-link:hover {
-				color: rgb(var(--accent));
-			}
-			.post-list {
-				list-style-type: none;
-				margin: 0;
-				padding: 0;
-				display: flex;
-				flex-direction: column;
-				gap: 1.5rem;
-			}
-			.post-item {
-				border: 1px solid rgb(var(--gray-light));
-				border-radius: 12px;
-				padding: 1.5rem;
-				transition: all 0.2s ease;
-			}
-			.post-item:hover {
-				box-shadow: var(--box-shadow);
-				border-color: rgb(var(--accent));
-			}
-			.post-link {
-				text-decoration: none;
-				display: block;
-			}
-			.post-title {
-				margin: 0 0 0.5rem 0;
-				color: rgb(var(--black));
-				font-size: 1.25rem;
-				font-weight: 600;
-			}
-			.post-date {
-				margin: 0;
-				color: rgb(var(--gray));
-				font-size: 0.875rem;
-			}
-			.post-description {
-				margin: 0.5rem 0 0 0;
-				color: rgb(var(--gray-dark));
-				font-size: 0.9rem;
-				line-height: 1.5;
-			}
-			.post-item:hover .post-title {
-				color: rgb(var(--accent));
+				color: var(--accent);
 			}
 			h1 {
 				margin-bottom: 1.5rem;
 				color: rgb(var(--black));
+				font-family: var(--font-serif);
+				font-size: 1.75rem;
+			}
+			/* Sub-category list */
+			.subcategory-list {
+				list-style-type: none;
+				margin: 0;
+				padding: 0;
+			}
+			.subcategory-item {
+				border-bottom: 1px solid rgb(var(--gray-light));
+				padding: 0.85rem 0;
+				transition: color 0.15s ease;
+			}
+			.subcategory-item:first-child {
+				border-top: 1px solid rgb(var(--gray-light));
+			}
+			.subcategory-link {
+				text-decoration: none;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.subcategory-name {
+				margin: 0;
+				color: rgb(var(--black));
+				font-size: 1.05rem;
+				font-weight: 600;
+				font-family: var(--font-serif);
+			}
+			.subcategory-count {
+				color: rgb(var(--gray));
+				font-size: 0.8rem;
+			}
+			.subcategory-item:hover .subcategory-name {
+				color: var(--accent);
+			}
+			/* Direct post list */
+			.post-list {
+				list-style-type: none;
+				margin: 0;
+				padding: 0;
+			}
+			.post-item {
+				border-bottom: 1px solid rgb(var(--gray-light));
+				padding: 0.85rem 0;
+			}
+			.post-item:first-child {
+				border-top: 1px solid rgb(var(--gray-light));
+			}
+			.post-link {
+				text-decoration: none;
+				display: flex;
+				justify-content: space-between;
+				align-items: baseline;
+				gap: 1rem;
+			}
+			.post-info {
+				flex: 1;
+				min-width: 0;
+			}
+			.post-title {
+				margin: 0;
+				color: rgb(var(--black));
+				font-size: 1.05rem;
+				font-weight: 600;
+				font-family: var(--font-serif);
+				transition: color 0.15s ease;
+			}
+			.post-date {
+				margin: 0;
+				color: rgb(var(--gray));
+				font-size: 0.8rem;
+				white-space: nowrap;
+				flex-shrink: 0;
+			}
+			.post-description {
+				margin: 0.2rem 0 0 0;
+				color: rgb(var(--gray));
+				font-size: 0.85rem;
+				line-height: 1.4;
+			}
+			.post-item:hover .post-title {
+				color: var(--accent);
 			}
 			.empty-state {
 				text-align: center;
@@ -108,8 +171,9 @@ const categoryPosts = posts
 				main {
 					padding: 1rem;
 				}
-				.post-item {
-					padding: 1rem;
+				.post-link {
+					flex-direction: column;
+					gap: 0.15rem;
 				}
 			}
 		</style>
@@ -120,29 +184,41 @@ const categoryPosts = posts
 			<a class="back-link" href="/blog/">← Back to category list</a>
 			<h1>{category}</h1>
 			<section>
-				{
-					categoryPosts.length > 0 ? (
-						<ul class="post-list">
-							{categoryPosts.map((post) => (
-								<li class="post-item">
-									<a class="post-link" href={`/blog/${post.id}/`}>
+				{hasSubCategories ? (
+					<ul class="subcategory-list">
+						{subCategories.map((sub) => (
+							<li class="subcategory-item">
+								<a class="subcategory-link" href={`/blog/${category}/${sub.name}/`}>
+									<h2 class="subcategory-name">{sub.name}</h2>
+									<span class="subcategory-count">{sub.count} posts</span>
+								</a>
+							</li>
+						))}
+					</ul>
+				) : null}
+				{directPosts.length > 0 ? (
+					<ul class="post-list">
+						{directPosts.map((post) => (
+							<li class="post-item">
+								<a class="post-link" href={`/blog/${post.id}/`}>
+									<div class="post-info">
 										<h2 class="post-title">{post.data.title}</h2>
-										<p class="post-date">
-											<FormattedDate date={post.data.pubDate} />
-										</p>
 										{post.data.description && (
 											<p class="post-description">{post.data.description}</p>
 										)}
-									</a>
-								</li>
-								))}
-							</ul>
-						) : (
-							<p class="empty-state">No posts found in this category</p>
-						)
-					}
-				</section>
-			</main>
-			<Footer />
-		</body>
-	</html>
+									</div>
+									<span class="post-date">
+										<FormattedDate date={post.data.pubDate} />
+									</span>
+								</a>
+							</li>
+						))}
+					</ul>
+				) : !hasSubCategories ? (
+					<p class="empty-state">No posts found in this category</p>
+				) : null}
+			</section>
+		</main>
+		<Footer />
+	</body>
+</html>

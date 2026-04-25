@@ -1,48 +1,48 @@
 /*
-  The CSS in this style tag is based off of Bear Blog's default CSS.
-  https://github.com/HermanMartinus/bearblog/blob/297026a877bc2ab2b3bdfbd6b9f7961c350917dd/templates/styles/blog/default.css
-  License MIT: https://github.com/HermanMartinus/bearblog/blob/master/LICENSE.md
+  Academic-style CSS
  */
 
 :root {
-	--accent: #2337ff;
-	--accent-dark: #000d8a;
+	--accent: #1a3a5c;
+	--accent-dark: #0f2440;
+	--accent-hover: #1a5276;
 	--black: 15, 18, 25;
-	--gray: 96, 115, 159;
-	--gray-light: 229, 233, 240;
-	--gray-dark: 34, 41, 57;
-	--gray-gradient: rgba(var(--gray-light), 50%), #fff;
-	--box-shadow:
-		0 2px 6px rgba(var(--gray), 25%), 0 8px 24px rgba(var(--gray), 33%), 0 16px 32px
-		rgba(var(--gray), 33%);
+	--gray: 108, 117, 130;
+	--gray-light: 230, 232, 236;
+	--gray-dark: 38, 42, 51;
+	--bg: #fafaf8;
+	--font-serif: "Crimson Text", Georgia, "Times New Roman", serif;
+	--font-sans: "Atkinson", -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-mono: "JetBrains Mono", "Fira Code", monospace;
 }
 @font-face {
 	font-family: "Atkinson";
-	src: url("/fonts/atkinson-regular.woff") format("woff");
+	src: url("/fonts/atkinson-regular.woff2") format("woff2"),
+	     url("/fonts/atkinson-regular.woff") format("woff");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 }
 @font-face {
 	font-family: "Atkinson";
-	src: url("/fonts/atkinson-bold.woff") format("woff");
+	src: url("/fonts/atkinson-bold.woff2") format("woff2"),
+	     url("/fonts/atkinson-bold.woff") format("woff");
 	font-weight: 700;
 	font-style: normal;
 	font-display: swap;
 }
 body {
-	font-family: "Atkinson", sans-serif;
+	font-family: var(--font-sans);
 	margin: 0;
 	padding: 0;
 	text-align: left;
-	background: linear-gradient(var(--gray-gradient)) no-repeat;
-	background-size: 100% 600px;
+	background: var(--bg);
 	word-wrap: break-word;
 	overflow-wrap: break-word;
 	color: rgb(var(--gray-dark));
-	font-size: 20px;
-	line-height: 1.7;
-	min-height: 125vh;
+	font-size: 18px;
+	line-height: 1.75;
+	min-height: 100vh;
 	display: flex;
 	flex-direction: column;
 }
@@ -63,32 +63,36 @@ h5,
 h6 {
 	margin: 0 0 0.5rem 0;
 	color: rgb(var(--black));
-	line-height: 1.2;
+	line-height: 1.3;
+	font-family: var(--font-serif);
+	font-weight: 700;
 }
 h1 {
-	font-size: 3.052em;
+	font-size: 2.4em;
 }
 h2 {
-	font-size: 2.441em;
+	font-size: 1.8em;
 }
 h3 {
-	font-size: 1.953em;
+	font-size: 1.4em;
 }
 h4 {
-	font-size: 1.563em;
+	font-size: 1.15em;
 }
 h5 {
-	font-size: 1.25em;
+	font-size: 1em;
 }
 strong,
 b {
 	font-weight: 700;
 }
 a {
-	color: var(--accent);
+	color: var(--accent-hover);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
 }
 a:hover {
-	color: var(--accent);
+	color: var(--accent-dark);
 }
 p {
 	margin-bottom: 1em;
@@ -109,25 +113,29 @@ table {
 img {
 	max-width: 100%;
 	height: auto;
-	border-radius: 8px;
+	border-radius: 4px;
 }
 code {
 	padding: 2px 5px;
 	background-color: rgb(var(--gray-light));
 	border-radius: 2px;
+	font-family: var(--font-mono);
+	font-size: 0.875em;
 }
 pre {
 	padding: 1.5em;
-	border-radius: 8px;
+	border-radius: 4px;
 }
 pre > code {
 	all: unset;
 }
 blockquote {
-	border-left: 4px solid var(--accent);
+	border-left: 3px solid rgb(var(--gray-light));
 	padding: 0 0 0 20px;
 	margin: 0;
-	font-size: 1.333em;
+	font-size: 1.1em;
+	font-style: italic;
+	color: rgb(var(--gray));
 }
 hr {
 	border: none;
@@ -135,10 +143,33 @@ hr {
 }
 @media (max-width: 720px) {
 	body {
-		font-size: 18px;
+		font-size: 16px;
 	}
 	main {
 		padding: 1em;
+	}
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+	:root {
+		--accent: #7d9ab8;
+		--accent-dark: #a3bdd4;
+		--accent-hover: #93b1cc;
+		--black: 220, 225, 235;
+		--gray: 150, 160, 175;
+		--gray-light: 45, 50, 60;
+		--gray-dark: 210, 215, 225;
+		--bg: #1a1b26;
+	}
+	body {
+		background-color: var(--bg);
+	}
+	img {
+		filter: brightness(0.9);
+	}
+	code {
+		background-color: rgba(255, 255, 255, 0.08);
 	}
 }
 

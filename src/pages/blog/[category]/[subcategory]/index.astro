@@ -1,0 +1,159 @@
+---
+import { getCollection } from 'astro:content';
+import BaseHead from '../../../../components/BaseHead.astro';
+import Footer from '../../../../components/Footer.astro';
+import FormattedDate from '../../../../components/FormattedDate.astro';
+import Header from '../../../../components/Header.astro';
+import { SITE_DESCRIPTION, SITE_TITLE } from '../../../../consts';
+
+export async function getStaticPaths() {
+	const posts = await getCollection('blog');
+
+	// 收集所有 category/subcategory 组合
+	const subMap = new Map<string, typeof posts>();
+	posts.forEach((post) => {
+		const parts = post.id.split('/');
+		if (parts.length > 2) {
+			const key = `${parts[0]}/${parts[1]}`;
+			if (!subMap.has(key)) subMap.set(key, []);
+			subMap.get(key)!.push(post);
+		}
+	});
+
+	return Array.from(subMap.entries()).map(([key, subPosts]) => {
+		const [category, subcategory] = key.split('/');
+		return {
+			params: { category, subcategory },
+			props: {
+				posts: subPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()),
+			},
+		};
+	});
+}
+
+const { category, subcategory } = Astro.params;
+const { posts } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<BaseHead title={`${subcategory} | ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
+		<style>
+			main {
+				width: 720px;
+				max-width: 100%;
+				margin: 0 auto;
+				padding: 2rem 1rem;
+			}
+			.back-link {
+				display: inline-block;
+				margin-bottom: 0.5rem;
+				color: rgb(var(--gray));
+				text-decoration: none;
+				font-size: 0.85rem;
+			}
+			.back-link:hover {
+				color: var(--accent);
+			}
+			h1 {
+				margin-bottom: 1.5rem;
+				color: rgb(var(--black));
+				font-family: var(--font-serif);
+				font-size: 1.75rem;
+			}
+			.post-list {
+				list-style-type: none;
+				margin: 0;
+				padding: 0;
+			}
+			.post-item {
+				border-bottom: 1px solid rgb(var(--gray-light));
+				padding: 0.85rem 0;
+			}
+			.post-item:first-child {
+				border-top: 1px solid rgb(var(--gray-light));
+			}
+			.post-link {
+				text-decoration: none;
+				display: flex;
+				justify-content: space-between;
+				align-items: baseline;
+				gap: 1rem;
+			}
+			.post-info {
+				flex: 1;
+				min-width: 0;
+			}
+			.post-title {
+				margin: 0;
+				color: rgb(var(--black));
+				font-size: 1.05rem;
+				font-weight: 600;
+				font-family: var(--font-serif);
+				transition: color 0.15s ease;
+			}
+			.post-date {
+				margin: 0;
+				color: rgb(var(--gray));
+				font-size: 0.8rem;
+				white-space: nowrap;
+				flex-shrink: 0;
+			}
+			.post-description {
+				margin: 0.2rem 0 0 0;
+				color: rgb(var(--gray));
+				font-size: 0.85rem;
+				line-height: 1.4;
+			}
+			.post-item:hover .post-title {
+				color: var(--accent);
+			}
+			.empty-state {
+				text-align: center;
+				color: rgb(var(--gray));
+				padding: 3rem 0;
+			}
+			@media (max-width: 720px) {
+				main {
+					padding: 1rem;
+				}
+				.post-link {
+					flex-direction: column;
+					gap: 0.15rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<Header />
+		<main>
+			<a class="back-link" href={`/blog/${category}/`}>← Back to {category}</a>
+			<h1>{subcategory}</h1>
+			<section>
+				{posts.length > 0 ? (
+					<ul class="post-list">
+						{posts.map((post) => (
+							<li class="post-item">
+								<a class="post-link" href={`/blog/${post.id}/`}>
+									<div class="post-info">
+										<h2 class="post-title">{post.data.title}</h2>
+										{post.data.description && (
+											<p class="post-description">{post.data.description}</p>
+										)}
+									</div>
+									<span class="post-date">
+										<FormattedDate date={post.data.pubDate} />
+									</span>
+								</a>
+							</li>
+						))}
+					</ul>
+				) : (
+					<p class="empty-state">No posts found</p>
+				)}
+			</section>
+		</main>
+		<Footer />
+	</body>
+</html>

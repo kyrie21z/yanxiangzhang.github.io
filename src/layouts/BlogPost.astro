@@ -1,19 +1,51 @@
 ---
 import { Image } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
+import type { MarkdownHeading } from 'astro';
 import BaseHead from '../components/BaseHead.astro';
 import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
 
-type Props = CollectionEntry<'blog'>['data'];
+type Props = CollectionEntry<'blog'>['data'] & {
+	headings?: MarkdownHeading[];
+};
 
-const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
+const {
+	title,
+	description,
+	pubDate,
+	updatedDate,
+	heroImage,
+	headings = [],
+	protected: isProtected = false,
+	passwordHash,
+	passwordHint,
+} = Astro.props;
+const tocHeadings = headings.filter((h) => h.depth <= 3);
+const hasPasswordLock = isProtected && Boolean(passwordHash);
+const unlockStorageKey = `post-unlocked:${Astro.url.pathname}`;
+
+const jsonLd = JSON.stringify({
+	'@context': 'https://schema.org',
+	'@type': 'BlogPosting',
+	headline: title,
+	description: description,
+	datePublished: pubDate.toISOString(),
+	...(updatedDate && { dateModified: updatedDate.toISOString() }),
+	author: {
+		'@type': 'Person',
+		name: 'Yanxiang Zhang',
+		url: 'https://yanxiangzhang.com',
+	},
+	...(heroImage && { image: new URL(heroImage.src, Astro.site).toString() }),
+});
 ---
 
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<BaseHead title={title} description={description} />
+		<script type="application/ld+json" set:html={jsonLd} />
 		<style>
 			main {
 				width: calc(100% - 2em);
@@ -26,8 +58,7 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
 			.hero-image img {
 				display: block;
 				margin: 0 auto;
-				border-radius: 12px;
-				box-shadow: var(--box-shadow);
+				border-radius: 4px;
 			}
 			.prose {
 				width: 720px;
@@ -37,20 +68,115 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
 				color: rgb(var(--gray-dark));
 			}
 			.title {
-				margin-bottom: 1em;
-				padding: 1em 0;
-				text-align: center;
-				line-height: 1;
+				margin-bottom: 1.5em;
+				padding: 1em 0 0;
+				text-align: left;
+				line-height: 1.3;
 			}
 			.title h1 {
-				margin: 0 0 0.5em 0;
+				margin: 0 0 0.4em 0;
+				font-family: var(--font-serif);
 			}
 			.date {
-				margin-bottom: 0.5em;
 				color: rgb(var(--gray));
+				font-size: 0.875rem;
 			}
 			.last-updated-on {
 				font-style: italic;
+			}
+			.back-link {
+				display: inline-block;
+				margin-bottom: 0.5rem;
+				color: rgb(var(--gray));
+				text-decoration: none;
+				font-size: 0.875rem;
+			}
+			.back-link:hover {
+				color: var(--accent);
+			}
+			/* TOC */
+			.toc {
+				border-left: 3px solid rgb(var(--gray-light));
+				padding: 0.5rem 0 0.5rem 1.25rem;
+				margin-bottom: 2rem;
+			}
+			.toc summary {
+				font-weight: 700;
+				cursor: pointer;
+				font-size: 0.9rem;
+				color: rgb(var(--gray));
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+			}
+			.toc ol {
+				margin: 0.5rem 0 0 0;
+				padding-left: 1.25rem;
+			}
+			.toc li {
+				margin: 0.2rem 0;
+				font-size: 0.85rem;
+				line-height: 1.5;
+			}
+			.toc a {
+				text-decoration: none;
+				color: rgb(var(--gray));
+			}
+			.toc a:hover {
+				color: var(--accent);
+			}
+			.toc .depth-3 {
+				margin-left: 1rem;
+			}
+			.password-lock {
+				border: 1px solid rgb(var(--gray-light));
+				border-radius: 8px;
+				padding: 1.25rem;
+				margin: 1.5rem 0;
+				background: rgb(var(--gray-light), 0.18);
+			}
+			.password-lock h2 {
+				margin: 0 0 0.5rem;
+				font-size: 1.2rem;
+			}
+			.password-lock p {
+				margin: 0 0 1rem;
+				color: rgb(var(--gray));
+			}
+			.password-form {
+				display: flex;
+				gap: 0.75rem;
+				align-items: center;
+			}
+			.password-form input {
+				min-width: 0;
+				flex: 1;
+				border: 1px solid rgb(var(--gray-light));
+				border-radius: 4px;
+				padding: 0.65rem 0.75rem;
+				font: inherit;
+			}
+			.password-form button {
+				border: 0;
+				border-radius: 4px;
+				padding: 0.7rem 1rem;
+				background: var(--accent);
+				color: white;
+				font: inherit;
+				cursor: pointer;
+			}
+			.password-error {
+				margin-top: 0.75rem;
+				color: #b42318;
+				font-size: 0.9rem;
+			}
+			[hidden] {
+				display: none !important;
+			}
+			@media (max-width: 520px) {
+				.password-form {
+					flex-direction: column;
+					align-items: stretch;
+				}
 			}
 		</style>
 	</head>
@@ -60,27 +186,113 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
 		<main>
 			<article>
 				<div class="hero-image">
-					{heroImage && <Image width={1020} height={510} src={heroImage} alt="" />}
+					{heroImage && <Image width={1020} height={510} src={heroImage} alt={title} />}
 				</div>
 				<div class="prose">
+					<a class="back-link" href="javascript:history.back()">← Back</a>
 					<div class="title">
+						<h1>{title}</h1>
 						<div class="date">
 							<FormattedDate date={pubDate} />
 							{
 								updatedDate && (
-									<div class="last-updated-on">
-										Last updated on <FormattedDate date={updatedDate} />
-									</div>
+									<span class="last-updated-on">
+										&middot; Updated <FormattedDate date={updatedDate} />
+									</span>
 								)
 							}
 						</div>
-						<h1>{title}</h1>
 						<hr />
 					</div>
-					<slot />
+					{tocHeadings.length > 2 && (
+						<details class="toc" open>
+							<summary>Table of Contents</summary>
+							<ol>
+								{tocHeadings.map((h) => (
+									<li class={h.depth === 3 ? 'depth-3' : ''}>
+										<a href={`#${h.slug}`}>{h.text}</a>
+									</li>
+								))}
+							</ol>
+						</details>
+					)}
+					{
+						hasPasswordLock && (
+							<section
+								class="password-lock"
+								id="password-lock"
+								data-password-hash={passwordHash}
+								data-storage-key={unlockStorageKey}
+							>
+								<h2>Protected content</h2>
+								<p>{passwordHint || 'Enter the password to read this post.'}</p>
+								<form class="password-form" id="password-form">
+									<input
+										id="password-input"
+										type="password"
+										name="password"
+										autocomplete="current-password"
+										placeholder="Password"
+										aria-label="Password"
+										required
+									/>
+									<button type="submit">Unlock</button>
+								</form>
+								<div class="password-error" id="password-error" role="alert" hidden>
+									Incorrect password.
+								</div>
+							</section>
+						)
+					}
+					<div id="protected-content" hidden={hasPasswordLock}>
+						<slot />
+					</div>
 				</div>
 			</article>
 		</main>
 		<Footer />
+		<script is:inline>
+			const lock = document.getElementById('password-lock');
+			const content = document.getElementById('protected-content');
+
+			if (lock && content) {
+				const form = document.getElementById('password-form');
+				const input = document.getElementById('password-input');
+				const error = document.getElementById('password-error');
+				const expectedHash = lock.dataset.passwordHash;
+				const storageKey = lock.dataset.storageKey;
+
+				const showContent = () => {
+					lock.hidden = true;
+					content.hidden = false;
+				};
+
+				const sha256 = async (value) => {
+					const bytes = new TextEncoder().encode(value);
+					const digest = await crypto.subtle.digest('SHA-256', bytes);
+					return Array.from(new Uint8Array(digest))
+						.map((byte) => byte.toString(16).padStart(2, '0'))
+						.join('');
+				};
+
+				if (storageKey && sessionStorage.getItem(storageKey) === 'true') {
+					showContent();
+				}
+
+				form?.addEventListener('submit', async (event) => {
+					event.preventDefault();
+					const password = input instanceof HTMLInputElement ? input.value : '';
+					const actualHash = await sha256(password);
+
+					if (expectedHash && actualHash === expectedHash) {
+						if (storageKey) sessionStorage.setItem(storageKey, 'true');
+						showContent();
+						return;
+					}
+
+					if (error) error.hidden = false;
+				});
+			}
+		</script>
 	</body>
 </html>
