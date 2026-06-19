@@ -42,7 +42,11 @@ export async function getStaticPaths() {
 			params: { category },
 			props: {
 				subCategories,
-				directPosts: directPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()),
+				directPosts: directPosts.sort(
+					(a, b) =>
+						Number(b.data.pinned) - Number(a.data.pinned) ||
+						b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+				),
 			},
 		};
 	});

@@ -18,13 +18,8 @@ const {
 	updatedDate,
 	heroImage,
 	headings = [],
-	protected: isProtected = false,
-	passwordHash,
-	passwordHint,
 } = Astro.props;
 const tocHeadings = headings.filter((h) => h.depth <= 3);
-const hasPasswordLock = isProtected && Boolean(passwordHash);
-const unlockStorageKey = `post-unlocked:${Astro.url.pathname}`;
 
 const jsonLd = JSON.stringify({
 	'@context': 'https://schema.org',
@@ -52,6 +47,15 @@ const jsonLd = JSON.stringify({
 				max-width: 100%;
 				margin: 0;
 			}
+			.article-shell {
+				display: grid;
+				grid-template-columns: minmax(0, 820px) 250px;
+				gap: 3rem;
+				align-items: start;
+				width: min(100% - 2rem, 1120px);
+				margin: 0 auto;
+				padding: 1rem 0 3rem;
+			}
 			.hero-image {
 				width: 100%;
 			}
@@ -61,10 +65,9 @@ const jsonLd = JSON.stringify({
 				border-radius: 4px;
 			}
 			.prose {
-				width: 720px;
-				max-width: calc(100% - 2em);
-				margin: auto;
-				padding: 1em;
+				width: 100%;
+				min-width: 0;
+				padding: 0;
 				color: rgb(var(--gray-dark));
 			}
 			.title {
@@ -96,86 +99,78 @@ const jsonLd = JSON.stringify({
 			}
 			/* TOC */
 			.toc {
-				border-left: 3px solid rgb(var(--gray-light));
-				padding: 0.5rem 0 0.5rem 1.25rem;
-				margin-bottom: 2rem;
+				position: sticky;
+				top: 1.5rem;
+				max-height: calc(100vh - 3rem);
+				overflow-y: auto;
+				padding: 0.9rem 0 0.9rem 1rem;
+				border-left: 1px solid rgb(var(--gray-light));
 			}
-			.toc summary {
+			.toc-title {
+				margin: 0 0 0.65rem;
 				font-weight: 700;
-				cursor: pointer;
-				font-size: 0.9rem;
-				color: rgb(var(--gray));
+				font-size: 0.78rem;
+				color: rgb(var(--black));
 				text-transform: uppercase;
-				letter-spacing: 0.05em;
+				letter-spacing: 0.08em;
 			}
 			.toc ol {
-				margin: 0.5rem 0 0 0;
-				padding-left: 1.25rem;
+				margin: 0;
+				padding: 0;
+				list-style: none;
 			}
 			.toc li {
-				margin: 0.2rem 0;
-				font-size: 0.85rem;
-				line-height: 1.5;
+				margin: 0;
+				font-size: 0.78rem;
+				line-height: 1.4;
 			}
 			.toc a {
+				display: block;
+				padding: 0.28rem 0.45rem;
+				border-radius: 3px;
 				text-decoration: none;
 				color: rgb(var(--gray));
+				transition: color 0.15s ease, background-color 0.15s ease;
 			}
-			.toc a:hover {
+			.toc a:hover,
+			.toc a.active {
 				color: var(--accent);
+				background: rgba(var(--gray-light), 0.45);
 			}
 			.toc .depth-3 {
-				margin-left: 1rem;
+				padding-left: 0.8rem;
 			}
-			.password-lock {
-				border: 1px solid rgb(var(--gray-light));
-				border-radius: 8px;
-				padding: 1.25rem;
-				margin: 1.5rem 0;
-				background: rgb(var(--gray-light), 0.18);
+			.toc .depth-1 a {
+				font-weight: 600;
+				color: rgb(var(--gray-dark));
 			}
-			.password-lock h2 {
-				margin: 0 0 0.5rem;
-				font-size: 1.2rem;
+			@media (max-width: 1080px) {
+				.article-shell {
+					grid-template-columns: minmax(0, 820px);
+					justify-content: center;
+					gap: 1rem;
+				}
+				.toc {
+					position: static;
+					grid-row: 1;
+					max-height: 18rem;
+					margin-bottom: 1rem;
+					padding: 0.85rem 1rem;
+					border: 1px solid rgb(var(--gray-light));
+					border-radius: 6px;
+					background: rgba(var(--gray-light), 0.18);
+				}
+				.prose {
+					grid-row: 2;
+				}
 			}
-			.password-lock p {
-				margin: 0 0 1rem;
-				color: rgb(var(--gray));
-			}
-			.password-form {
-				display: flex;
-				gap: 0.75rem;
-				align-items: center;
-			}
-			.password-form input {
-				min-width: 0;
-				flex: 1;
-				border: 1px solid rgb(var(--gray-light));
-				border-radius: 4px;
-				padding: 0.65rem 0.75rem;
-				font: inherit;
-			}
-			.password-form button {
-				border: 0;
-				border-radius: 4px;
-				padding: 0.7rem 1rem;
-				background: var(--accent);
-				color: white;
-				font: inherit;
-				cursor: pointer;
-			}
-			.password-error {
-				margin-top: 0.75rem;
-				color: #b42318;
-				font-size: 0.9rem;
-			}
-			[hidden] {
-				display: none !important;
-			}
-			@media (max-width: 520px) {
-				.password-form {
-					flex-direction: column;
-					align-items: stretch;
+			@media (max-width: 720px) {
+				.article-shell {
+					width: calc(100% - 2rem);
+					padding-top: 0.5rem;
+				}
+				.title h1 {
+					font-size: 2rem;
 				}
 			}
 		</style>
@@ -188,110 +183,66 @@ const jsonLd = JSON.stringify({
 				<div class="hero-image">
 					{heroImage && <Image width={1020} height={510} src={heroImage} alt={title} />}
 				</div>
-				<div class="prose">
-					<a class="back-link" href="javascript:history.back()">← Back</a>
-					<div class="title">
-						<h1>{title}</h1>
-						<div class="date">
-							<FormattedDate date={pubDate} />
-							{
-								updatedDate && (
-									<span class="last-updated-on">
-										&middot; Updated <FormattedDate date={updatedDate} />
-									</span>
-								)
-							}
+				<div class="article-shell">
+					<div class="prose">
+						<a class="back-link" href="javascript:history.back()">← Back</a>
+						<div class="title">
+							<h1>{title}</h1>
+							<div class="date">
+								<FormattedDate date={pubDate} />
+								{
+									updatedDate && (
+										<span class="last-updated-on">
+											&middot; Updated <FormattedDate date={updatedDate} />
+										</span>
+									)
+								}
+							</div>
+							<hr />
 						</div>
-						<hr />
+						<slot />
 					</div>
-					{tocHeadings.length > 2 && (
-						<details class="toc" open>
-							<summary>Table of Contents</summary>
+					{
+						tocHeadings.length > 2 && (
+							<aside class="toc" aria-label="文章大纲">
+								<p class="toc-title">文章大纲</p>
 							<ol>
 								{tocHeadings.map((h) => (
-									<li class={h.depth === 3 ? 'depth-3' : ''}>
+									<li class={`depth-${h.depth}`}>
 										<a href={`#${h.slug}`}>{h.text}</a>
 									</li>
 								))}
 							</ol>
-						</details>
-					)}
-					{
-						hasPasswordLock && (
-							<section
-								class="password-lock"
-								id="password-lock"
-								data-password-hash={passwordHash}
-								data-storage-key={unlockStorageKey}
-							>
-								<h2>Protected content</h2>
-								<p>{passwordHint || 'Enter the password to read this post.'}</p>
-								<form class="password-form" id="password-form">
-									<input
-										id="password-input"
-										type="password"
-										name="password"
-										autocomplete="current-password"
-										placeholder="Password"
-										aria-label="Password"
-										required
-									/>
-									<button type="submit">Unlock</button>
-								</form>
-								<div class="password-error" id="password-error" role="alert" hidden>
-									Incorrect password.
-								</div>
-							</section>
+							</aside>
 						)
 					}
-					<div id="protected-content" hidden={hasPasswordLock}>
-						<slot />
-					</div>
 				</div>
 			</article>
 		</main>
 		<Footer />
-		<script is:inline>
-			const lock = document.getElementById('password-lock');
-			const content = document.getElementById('protected-content');
+		<script>
+			const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.toc a'));
+			const headingsById = links
+				.map((link) => document.getElementById(decodeURIComponent(link.hash.slice(1))))
+				.filter((heading): heading is HTMLElement => Boolean(heading));
 
-			if (lock && content) {
-				const form = document.getElementById('password-form');
-				const input = document.getElementById('password-input');
-				const error = document.getElementById('password-error');
-				const expectedHash = lock.dataset.passwordHash;
-				const storageKey = lock.dataset.storageKey;
+			if (links.length && headingsById.length) {
+				const updateActiveLink = () => {
+					const offset = 120;
+					let activeId = headingsById[0].id;
 
-				const showContent = () => {
-					lock.hidden = true;
-					content.hidden = false;
-				};
-
-				const sha256 = async (value) => {
-					const bytes = new TextEncoder().encode(value);
-					const digest = await crypto.subtle.digest('SHA-256', bytes);
-					return Array.from(new Uint8Array(digest))
-						.map((byte) => byte.toString(16).padStart(2, '0'))
-						.join('');
-				};
-
-				if (storageKey && sessionStorage.getItem(storageKey) === 'true') {
-					showContent();
-				}
-
-				form?.addEventListener('submit', async (event) => {
-					event.preventDefault();
-					const password = input instanceof HTMLInputElement ? input.value : '';
-					const actualHash = await sha256(password);
-
-					if (expectedHash && actualHash === expectedHash) {
-						if (storageKey) sessionStorage.setItem(storageKey, 'true');
-						showContent();
-						return;
+					for (const heading of headingsById) {
+						if (heading.getBoundingClientRect().top <= offset) activeId = heading.id;
+						else break;
 					}
 
-					if (error) error.hidden = false;
-				});
+					for (const link of links) {
+						link.classList.toggle('active', decodeURIComponent(link.hash.slice(1)) === activeId);
+					}
+				};
+
+				updateActiveLink();
+				document.addEventListener('scroll', updateActiveLink, { passive: true });
 			}
 		</script>
 	</body>

@@ -18,7 +18,11 @@ const sortedCategories = Array.from(categories.entries()).sort((a, b) => a[0].lo
 
 // 构建搜索索引数据（展示完整分类路径）
 const allPosts = posts
-	.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+	.sort(
+		(a, b) =>
+			Number(b.data.pinned) - Number(a.data.pinned) ||
+			b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+	)
 	.map((post) => {
 		const parts = post.id.split('/');
 		// 去掉最后的文件名，拼接成分类路径

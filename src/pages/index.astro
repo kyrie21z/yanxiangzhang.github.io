@@ -10,7 +10,11 @@ import monicaImage from '../assets/monica.png';
 
 const allPosts = await getCollection('blog');
 const latestPosts = allPosts
-	.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+	.sort(
+		(a, b) =>
+			Number(b.data.pinned) - Number(a.data.pinned) ||
+			b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+	)
 	.slice(0, 5);
 ---
 

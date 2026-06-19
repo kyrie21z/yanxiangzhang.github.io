@@ -1,16 +1,13 @@
 ---
-title: 'BFPRT - Median of Medians BFPRT选择算法'
-description: '核心任务: Top-K问题: 在一个数组中找第k小/大的元素 隶属于任务: Order Statistic 顺序统计量 参考方法: Quick Select 快速选择 算法实现: step1: 分组, 5个元素一组 step2: 找每组的中位数(给每组的5个数排序) step3: 找中位数中的中位数pivot s...'
-pubDate: '2026-04-09'
-protected: true
-passwordHash: 'a5f6ee79cd69074506575fa931b1f391dfc68c915562d6fb391ff5ff65b6d79e'
-passwordHint: '请输入课程内容访问密码'
+title: "BFPRT - Median of Medians BFPRT选择算法"
+description: "核心任务: Top K问题: 在一个数组中找第k小/大的元素 隶属于任务: Order Statistic 顺序统计量 参考方法: Quick Select 快速选择 算法实现: step1: 分组, 5个元素一组 step2: 找每组的中位数(给每组的5个数排序) step3: 找中位数中的中位数pivot s..."
+pubDate: "2026-04-03"
 ---
 # 核心任务:
 	Top-K问题: 在一个数组中找第k小/大的元素
-隶属于任务: [Order Statistic 顺序统计量](/blog/cs-major-courses/algorithm-analysis-and-design/order-statistic-顺序统计量/)
+隶属于任务: [Order Statistic 顺序统计量](/blog/cs-major-courses/introduction-to-algorithms/order-statistic-顺序统计量/)
 # 参考方法:
-[Quick Select 快速选择](/blog/cs-major-courses/algorithm-analysis-and-design/quick-select-快速选择/)
+[Quick Select 快速选择](/blog/cs-major-courses/introduction-to-algorithms/quick-select-快速选择/)
 
 # 算法实现:
 step1: 分组, 5个元素一组
@@ -39,7 +36,7 @@ elif i > k:
 $T(n)=T(n/5)+T(7n/10)+O(n)$
 $1/5+7/10=9/10<1$
 $T(n)=O(n)$
-判断依据: [Trick for Analyzing Recursive Time Complexity](/blog/cs-major-courses/algorithm-analysis-and-design/trick-for-analyzing-recursive-time-complexity/)
+判断依据: Trick for Analyzing Recursive Time Complexity
 
 # 算法优劣
 ## 优:

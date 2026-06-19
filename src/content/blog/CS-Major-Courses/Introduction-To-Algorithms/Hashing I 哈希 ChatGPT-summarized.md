@@ -1,10 +1,7 @@
 ---
-title: 'Hashing I 哈希 ChatGPT-summarized'
-description: '下面是完全兼容 Obsidian 的 Markdown + LaTeX 版本（已清理所有非标准标记，可直接粘贴）： 2. (T[k]) 存的是 record，不是 key 定义： $$ T[k] = \begin{cases} x & \text{if } key[x] = k \ \text{NIL} & \t...'
-pubDate: '2026-04-09'
-protected: true
-passwordHash: 'a5f6ee79cd69074506575fa931b1f391dfc68c915562d6fb391ff5ff65b6d79e'
-passwordHint: '请输入课程内容访问密码'
+title: "Hashing I 哈希 ChatGPT-summarized"
+description: "下面是 完全兼容 Obsidian 的 Markdown + LaTeX 版本 （已清理所有非标准标记，可直接粘贴）： Lecture 7 — Hashing（考前速记版） 一、易错点修正（重点） 1. 区分 (O(1)) 与 (\\Theta(1)) Direct access table 的操作时间是： $$ ..."
+pubDate: "2026-04-08"
 ---
 下面是**完全兼容 Obsidian 的 Markdown + LaTeX 版本**（已清理所有非标准标记，可直接粘贴）：
 
@@ -14,7 +11,7 @@ passwordHint: '请输入课程内容访问密码'
 
 ## 一、易错点修正（重点）
 
-### 1. 区分 (O(1)) 与 $\Theta(1$)
+### 1. 区分 (O(1)) 与 (\Theta(1))
 
 Direct-access table 的操作时间是：
 
@@ -51,7 +48,7 @@ $$
 
 ---
 
-### 3. chaining 中 $\alpha = O(1$) ⇒ 查找 $\Theta(1$)
+### 3. chaining 中 (\alpha = O(1)) ⇒ 查找 (\Theta(1))
 
 负载因子：
 
@@ -65,7 +62,7 @@ $$
 \Theta(1 + \alpha)  
 $$
 
-若 $\alpha = O(1$)，则：
+若 (\alpha = O(1))，则：
 
 $$  
 \Theta(1)  
@@ -329,7 +326,7 @@ $$
 
 ### 8. Open Addressing 分析
 
-在 $\alpha < 1$ 时：
+在 (\alpha < 1) 时：
 
 $$  
 \mathbb{E}[\text{probes}] \le \frac{1}{1 - \alpha}  

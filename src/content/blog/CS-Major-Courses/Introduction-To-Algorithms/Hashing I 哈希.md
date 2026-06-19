@@ -1,10 +1,7 @@
 ---
-title: 'Hashing I 哈希'
-description: 'Direct-Access Table 直接寻址表 算法实现 存在问题 Direct-access table = 用空间换时间的极限方案： 用一个巨大数组，实现真正的 Θ(1) 查找，但通常空间不可接受。 为了解决空间的不可接受性, 推出Hashing Table Hashing Table 哈希表 哈希表由两...'
-pubDate: '2026-04-09'
-protected: true
-passwordHash: 'a5f6ee79cd69074506575fa931b1f391dfc68c915562d6fb391ff5ff65b6d79e'
-passwordHint: '请输入课程内容访问密码'
+title: "Hashing I 哈希"
+description: "Direct Access Table 直接寻址表 算法实现 存在问题 Direct access table 用空间换时间的极限方案： 用一个巨大数组，实现真正的 Θ(1) 查找，但通常空间不可接受。 为了解决空间的不可接受性, 推出Hashing Table Hashing Table 哈希表 哈希表由两个部..."
+pubDate: "2026-04-08"
 ---
 
 # Direct-Access Table 直接寻址表

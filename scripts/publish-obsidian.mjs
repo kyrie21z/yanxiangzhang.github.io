@@ -18,33 +18,7 @@ const MANIFEST_PATH = join(ROOT, 'scripts/.publish-manifest.json');
 
 // ─── 分类映射 ─────────────────────────────────────────────────────────────────
 function getCategory(filename) {
-  const lower = filename.toLowerCase();
-
-  if (lower.includes('组件实现') || lower.includes('登录界面')) {
-    return 'CS-Major-Courses/Desktop Application Develop';
-  }
-  if (
-    lower.includes('hashing') ||
-    lower.includes('quick select') ||
-    lower.includes('quick sort') ||
-    lower.includes('bfprt') ||
-    lower.includes('order statistic') ||
-    lower.includes('divide') ||
-    lower.includes('trick for analyzing') ||
-    lower.includes('introduction to algorithms')
-  ) {
-    return 'CS-Major-Courses/Algorithm Analysis and Design';
-  }
-  if (
-    lower.includes('ndarray') ||
-    lower.includes('ufunc') ||
-    lower.includes('numpy') ||
-    lower.includes('pandas') ||
-    lower.includes('scipy') ||
-    lower.includes('pickle')
-  ) {
-    return 'CS-Major-Courses/Python and Data Science';
-  }
+  void filename;
   return null;
 }
 

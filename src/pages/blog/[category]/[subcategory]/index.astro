@@ -25,7 +25,11 @@ export async function getStaticPaths() {
 		return {
 			params: { category, subcategory },
 			props: {
-				posts: subPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()),
+				posts: subPosts.sort(
+					(a, b) =>
+						Number(b.data.pinned) - Number(a.data.pinned) ||
+						b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+				),
 			},
 		};
 	});

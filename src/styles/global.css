@@ -123,11 +123,23 @@ code {
 	font-size: 0.875em;
 }
 pre {
-	padding: 1.5em;
-	border-radius: 4px;
+	padding: 1.15rem 1.25rem;
+	border: 1px solid rgb(var(--gray-light));
+	border-radius: 6px;
+	box-shadow: 0 1px 2px rgba(15, 18, 25, 0.04);
 }
 pre > code {
 	all: unset;
+}
+.astro-code {
+	background-color: #f3f4f6 !important;
+	color: var(--shiki-light);
+	font-size: 0.84em;
+	line-height: 1.65;
+	tab-size: 4;
+}
+.astro-code span {
+	color: var(--shiki-light);
 }
 blockquote {
 	border-left: 3px solid rgb(var(--gray-light));
@@ -136,6 +148,85 @@ blockquote {
 	font-size: 1.1em;
 	font-style: italic;
 	color: rgb(var(--gray));
+}
+.prose blockquote.callout {
+	--callout-color: 67, 124, 174;
+	margin: 1.5rem 0;
+	padding: 1rem 1.15rem;
+	border: 1px solid rgba(var(--callout-color), 0.32);
+	border-left: 4px solid rgb(var(--callout-color));
+	border-radius: 6px;
+	background: rgba(var(--callout-color), 0.08);
+	color: rgb(var(--gray-dark));
+	font-size: 0.95em;
+	font-style: normal;
+}
+.prose blockquote.callout > .callout-title {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0 0 0.65rem;
+	color: rgb(var(--callout-color));
+	font-weight: 700;
+	letter-spacing: 0.01em;
+}
+.prose blockquote.callout > .callout-title::before {
+	content: "i";
+	display: inline-grid;
+	place-items: center;
+	width: 1.25rem;
+	height: 1.25rem;
+	flex: 0 0 1.25rem;
+	border: 1.5px solid currentColor;
+	border-radius: 50%;
+	font-size: 0.75rem;
+	font-family: var(--font-sans);
+	line-height: 1;
+}
+.prose blockquote.callout > :last-child {
+	margin-bottom: 0;
+}
+.prose blockquote.callout ul,
+.prose blockquote.callout ol {
+	margin-bottom: 0.5rem;
+}
+.prose blockquote.callout-warning,
+.prose blockquote.callout-important,
+.prose blockquote.callout-question {
+	--callout-color: 191, 117, 24;
+}
+.prose blockquote.callout-danger,
+.prose blockquote.callout-failure,
+.prose blockquote.callout-bug {
+	--callout-color: 190, 55, 55;
+}
+.prose blockquote.callout-success,
+.prose blockquote.callout-tip {
+	--callout-color: 40, 137, 88;
+}
+.prose blockquote.callout-example,
+.prose blockquote.callout-theorem {
+	--callout-color: 118, 79, 164;
+}
+.prose blockquote.callout-quote {
+	--callout-color: 108, 117, 130;
+}
+.prose blockquote.callout-warning > .callout-title::before,
+.prose blockquote.callout-danger > .callout-title::before,
+.prose blockquote.callout-failure > .callout-title::before {
+	content: "!";
+}
+.prose blockquote.callout-success > .callout-title::before,
+.prose blockquote.callout-tip > .callout-title::before {
+	content: "✓";
+}
+.prose blockquote.callout-question > .callout-title::before {
+	content: "?";
+}
+.prose blockquote.callout-example > .callout-title::before,
+.prose blockquote.callout-theorem > .callout-title::before {
+	content: "◆";
+	font-size: 0.6rem;
 }
 hr {
 	border: none;
@@ -170,6 +261,15 @@ hr {
 	}
 	code {
 		background-color: rgba(255, 255, 255, 0.08);
+	}
+	.astro-code {
+		background-color: #252936 !important;
+		color: var(--shiki-dark);
+		border-color: rgba(255, 255, 255, 0.09);
+		box-shadow: none;
+	}
+	.astro-code span {
+		color: var(--shiki-dark);
 	}
 }
 

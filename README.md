@@ -1,6 +1,6 @@
 # Yanxiang Zhang Web
 
-Yanxiang Zhang 的个人博客与学习笔记站点，基于 Astro 构建。站点用于整理计算机专业课程笔记、论文分享和个人思考，当前内容重点包括算法、桌面应用开发、Computer Vision、Multi-Agent Systems 和 Embodied AI 等方向。
+Yanxiang Zhang 的个人博客与学习笔记站点，基于 Astro 构建。站点用于整理论文分享和个人思考。
 
 线上站点：<https://yanxiangzhang.com>
 
@@ -55,8 +55,7 @@ Yanxiang Zhang 的个人博客与学习笔记站点，基于 Astro 构建。站�
 ```text
 src/content/blog/
 ├── CS-Major-Courses/
-│   ├── Algorithm Analysis and Design/
-│   └── Desktop Application Develop/
+│   └── Introduction-To-Algorithms/
 ├── Paper-Sharing/
 └── Personal-Insights/
 ```
@@ -64,9 +63,8 @@ src/content/blog/
 对应路由示例：
 
 ```text
-/blog/CS-Major-Courses/
-/blog/CS-Major-Courses/Algorithm Analysis and Design/
-/blog/CS-Major-Courses/Algorithm Analysis and Design/Quick Select 快速选择/
+/blog/CS-Major-Courses/Introduction-To-Algorithms/
+/blog/Paper-Sharing/
 ```
 
 每篇文章需要包含 frontmatter：
@@ -160,4 +158,3 @@ yanxiangzhang.com
 | `npm run preview` | 预览生产构建结果 |
 | `npm run astro -- --help` | 查看 Astro CLI 帮助 |
 | `node scripts/publish-obsidian.mjs` | 从 Obsidian Vault 同步博客内容 |
-
