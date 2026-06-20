@@ -127,6 +127,8 @@ const jsonLd = JSON.stringify({
 				top: 1.5rem;
 				max-height: calc(100vh - 3rem);
 				overflow-y: auto;
+				scrollbar-width: thin;
+				scrollbar-color: rgba(var(--gray), 0.22) transparent;
 				padding: 0.9rem 1rem 0.9rem 0;
 				border-right: 1px solid rgb(var(--gray-light));
 			}
@@ -178,8 +180,27 @@ const jsonLd = JSON.stringify({
 				top: 1.5rem;
 				max-height: calc(100vh - 3rem);
 				overflow-y: auto;
+				scrollbar-width: thin;
+				scrollbar-color: rgba(var(--gray), 0.22) transparent;
 				padding: 0.9rem 0 0.9rem 1rem;
 				border-left: 1px solid rgb(var(--gray-light));
+			}
+			.blog-nav::-webkit-scrollbar,
+			.toc::-webkit-scrollbar {
+				width: 5px;
+			}
+			.blog-nav::-webkit-scrollbar-track,
+			.toc::-webkit-scrollbar-track {
+				background: transparent;
+			}
+			.blog-nav::-webkit-scrollbar-thumb,
+			.toc::-webkit-scrollbar-thumb {
+				border-radius: 999px;
+				background: rgba(var(--gray), 0.18);
+			}
+			.blog-nav:hover::-webkit-scrollbar-thumb,
+			.toc:hover::-webkit-scrollbar-thumb {
+				background: rgba(var(--gray), 0.32);
 			}
 			.toc-title {
 				margin: 0 0 0.65rem;
