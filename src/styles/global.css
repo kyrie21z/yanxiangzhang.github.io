@@ -161,6 +161,45 @@ pre > code {
 .astro-code span {
 	color: var(--shiki-light);
 }
+.mermaid-diagram {
+	margin: 1.75rem 0;
+	padding: 1.25rem;
+	overflow-x: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(var(--gray), 0.22) transparent;
+	border: 1px solid rgb(var(--gray-light));
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.55);
+}
+.mermaid-diagram svg {
+	display: block;
+	width: auto;
+	max-width: none !important;
+	height: auto !important;
+	margin: 0 auto;
+	overflow: visible;
+}
+.mermaid-diagram::-webkit-scrollbar {
+	height: 6px;
+}
+.mermaid-diagram::-webkit-scrollbar-track {
+	background: transparent;
+}
+.mermaid-diagram::-webkit-scrollbar-thumb {
+	border-radius: 999px;
+	background: rgba(var(--gray), 0.2);
+}
+.mermaid-diagram:hover::-webkit-scrollbar-thumb {
+	background: rgba(var(--gray), 0.35);
+}
+.mermaid-error {
+	margin: 1.5rem 0 0.4rem;
+	color: #b42318;
+	font-size: 0.85rem;
+}
+.mermaid-error-source {
+	margin-top: 0;
+}
 blockquote {
 	border-left: 3px solid rgb(var(--gray-light));
 	padding: 0 0 0 20px;
@@ -293,6 +332,12 @@ hr {
 	}
 	.astro-code span {
 		color: var(--shiki-dark);
+	}
+	.mermaid-diagram {
+		background: rgba(255, 255, 255, 0.035);
+	}
+	.mermaid-error {
+		color: #ff9b91;
 	}
 }
 

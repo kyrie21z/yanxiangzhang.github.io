@@ -364,6 +364,64 @@ const jsonLd = JSON.stringify({
 		</main>
 		<Footer />
 		<script>
+			const mermaidBlocks = Array.from(
+				document.querySelectorAll<HTMLPreElement>('pre[data-language="mermaid"]'),
+			);
+
+			if (mermaidBlocks.length) {
+				const renderMermaid = async () => {
+					const { default: mermaid } = await import('mermaid');
+					const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+					mermaid.initialize({
+						startOnLoad: false,
+						securityLevel: 'strict',
+						theme: darkMode ? 'dark' : 'neutral',
+						fontFamily: '"Maple Mono NL NF CN", "Maple Mono", monospace',
+						htmlLabels: true,
+						flowchart: {
+							useMaxWidth: false,
+							wrappingWidth: 480,
+						},
+					});
+
+					for (const [index, block] of mermaidBlocks.entries()) {
+						const source = block.textContent?.trim();
+						if (!source) continue;
+
+						try {
+							const { svg, bindFunctions } = await mermaid.render(
+								`mermaid-diagram-${index}`,
+								source,
+							);
+							const figure = document.createElement('figure');
+							figure.className = 'mermaid-diagram';
+							figure.innerHTML = svg;
+							const renderedSvg = figure.querySelector('svg');
+							if (renderedSvg) {
+								const intrinsicWidth = renderedSvg.viewBox.baseVal.width;
+								renderedSvg.style.maxWidth = 'none';
+								if (intrinsicWidth > 0) renderedSvg.style.width = `${intrinsicWidth}px`;
+								renderedSvg.style.height = 'auto';
+							}
+							block.replaceWith(figure);
+							bindFunctions?.(figure);
+						} catch (error) {
+							block.classList.add('mermaid-error-source');
+							const message = document.createElement('p');
+							message.className = 'mermaid-error';
+							message.textContent = 'Mermaid 图表语法错误，已保留源代码。';
+							block.insertAdjacentElement('beforebegin', message);
+							console.error('Mermaid render failed:', error);
+						}
+					}
+				};
+
+				renderMermaid().catch((error) => {
+					console.error('Unable to load Mermaid:', error);
+				});
+			}
+
 			const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.toc a'));
 			const headingsById = links
 				.map((link) => document.getElementById(decodeURIComponent(link.hash.slice(1))))
