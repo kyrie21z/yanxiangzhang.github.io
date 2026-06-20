@@ -6,6 +6,7 @@ import { defineConfig } from 'astro/config';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkCallouts from './src/plugins/remark-callouts.mjs';
+import remarkHighlights from './src/plugins/remark-highlights.mjs';
 
 // https://astro.build/config
 export default defineConfig({
@@ -19,7 +20,7 @@ export default defineConfig({
 			},
 			defaultColor: false,
 		},
-		remarkPlugins: [remarkMath, remarkCallouts],
+		remarkPlugins: [remarkMath, remarkCallouts, remarkHighlights],
 		rehypePlugins: [rehypeKatex],
 	},
 	devToolbar: {
