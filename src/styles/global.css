@@ -104,6 +104,27 @@ mark {
 	box-decoration-break: clone;
 	-webkit-box-decoration-break: clone;
 }
+.pinned-frame {
+	position: relative;
+	border: 1px solid rgba(154, 91, 18, 0.38) !important;
+	border-radius: 6px;
+	background: rgba(246, 211, 101, 0.05);
+}
+.pinned-frame::before {
+	content: "Pinned";
+	position: absolute;
+	top: -0.62rem;
+	left: 0.75rem;
+	z-index: 1;
+	padding: 0 0.38rem;
+	background: var(--bg);
+	color: #9a5b12;
+	font-family: var(--font-sans);
+	font-size: 0.68rem;
+	font-weight: 700;
+	line-height: 1.2;
+	letter-spacing: 0.06em;
+}
 a {
 	color: var(--accent-hover);
 	text-decoration-thickness: 1px;
@@ -297,47 +318,6 @@ hr {
 	}
 	main {
 		padding: 1em;
-	}
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-	:root {
-		--accent: #7d9ab8;
-		--accent-dark: #a3bdd4;
-		--accent-hover: #93b1cc;
-		--black: 220, 225, 235;
-		--gray: 150, 160, 175;
-		--gray-light: 45, 50, 60;
-		--gray-dark: 210, 215, 225;
-		--bg: #1a1b26;
-	}
-	body {
-		background-color: var(--bg);
-	}
-	img {
-		filter: brightness(0.9);
-	}
-	code {
-		background-color: rgba(255, 255, 255, 0.08);
-	}
-	mark {
-		background: rgba(218, 174, 55, 0.3);
-	}
-	.astro-code {
-		background-color: #252936 !important;
-		color: var(--shiki-dark);
-		border-color: rgba(255, 255, 255, 0.09);
-		box-shadow: none;
-	}
-	.astro-code span {
-		color: var(--shiki-dark);
-	}
-	.mermaid-diagram {
-		background: rgba(255, 255, 255, 0.035);
-	}
-	.mermaid-error {
-		color: #ff9b91;
 	}
 }
 

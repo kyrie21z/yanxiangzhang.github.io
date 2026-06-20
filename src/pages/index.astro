@@ -156,6 +156,10 @@ const latestPosts = allPosts
 			.latest-posts li:last-child {
 				border-bottom: none;
 			}
+			.latest-posts li.pinned-frame {
+				margin: 0.8rem 0 0.65rem;
+				padding: 0.65rem 0.75rem;
+			}
 			.latest-posts a {
 				text-decoration: none;
 				color: rgb(var(--gray-dark));
@@ -214,7 +218,7 @@ const latestPosts = allPosts
 				<h2 class="section-title">Recent Notes</h2>
 				<ul class="latest-posts">
 					{latestPosts.map((post) => (
-						<li>
+						<li class:list={{ 'pinned-frame': post.data.pinned }}>
 							<a href={`/blog/${post.id}/`}>{post.data.title}</a>
 							<span class="post-date"><FormattedDate date={post.data.pubDate} /></span>
 						</li>

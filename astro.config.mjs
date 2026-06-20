@@ -14,11 +14,7 @@ export default defineConfig({
 	integrations: [mdx(), sitemap()],
 	markdown: {
 		shikiConfig: {
-			themes: {
-				light: 'github-light',
-				dark: 'github-dark-dimmed',
-			},
-			defaultColor: false,
+			theme: 'github-light',
 		},
 		remarkPlugins: [remarkMath, remarkCallouts, remarkHighlights],
 		rehypePlugins: [rehypeKatex],

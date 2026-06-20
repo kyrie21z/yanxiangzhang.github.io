@@ -17,6 +17,7 @@ const {
 	pubDate,
 	updatedDate,
 	heroImage,
+	pinned = false,
 	headings = [],
 } = Astro.props;
 const tocHeadings = headings.filter((h) => h.depth <= 3);
@@ -104,6 +105,10 @@ const jsonLd = JSON.stringify({
 				margin: 0 0 0.4em 0;
 				font-family: var(--font-serif);
 			}
+			.title.pinned-frame {
+				margin-top: 1rem;
+				padding: 1.15rem 1rem 0.8rem;
+			}
 			.date {
 				color: rgb(var(--gray));
 				font-size: 0.875rem;
@@ -173,6 +178,10 @@ const jsonLd = JSON.stringify({
 			.blog-nav .file-link {
 				overflow: hidden;
 				text-overflow: ellipsis;
+			}
+			.blog-nav .file-link.pinned-frame {
+				margin: 0.8rem 0 0.35rem;
+				padding-top: 0.65rem;
 			}
 			/* TOC */
 			.toc {
@@ -316,7 +325,10 @@ const jsonLd = JSON.stringify({
 								directoryPosts.map((post) => (
 									<li>
 										<a
-											class:list={['file-link', { active: post.id === currentId }]}
+											class:list={[
+												'file-link',
+												{ active: post.id === currentId, 'pinned-frame': post.data.pinned },
+											]}
 											href={`/blog/${post.id}/`}
 											title={post.data.title}
 										>
@@ -329,7 +341,7 @@ const jsonLd = JSON.stringify({
 					</nav>
 					<div class="prose">
 						<a class="back-link" href="javascript:history.back()">← Back</a>
-						<div class="title">
+						<div class:list={['title', { 'pinned-frame': pinned }]}>
 							<h1>{title}</h1>
 							<div class="date">
 								<FormattedDate date={pubDate} />
@@ -371,12 +383,11 @@ const jsonLd = JSON.stringify({
 			if (mermaidBlocks.length) {
 				const renderMermaid = async () => {
 					const { default: mermaid } = await import('mermaid');
-					const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 					mermaid.initialize({
 						startOnLoad: false,
 						securityLevel: 'strict',
-						theme: darkMode ? 'dark' : 'neutral',
+						theme: 'neutral',
 						fontFamily: '"Maple Mono NL NF CN", "Maple Mono", monospace',
 						htmlLabels: true,
 						flowchart: {

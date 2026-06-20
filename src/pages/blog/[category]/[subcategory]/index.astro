@@ -78,6 +78,10 @@ const { posts } = Astro.props;
 			.post-item:first-child {
 				border-top: 1px solid rgb(var(--gray-light));
 			}
+			.post-item.pinned-frame {
+				margin: 0.9rem 0 0.75rem;
+				padding: 0.95rem 0.85rem;
+			}
 			.post-link {
 				text-decoration: none;
 				display: flex;
@@ -138,7 +142,7 @@ const { posts } = Astro.props;
 				{posts.length > 0 ? (
 					<ul class="post-list">
 						{posts.map((post) => (
-							<li class="post-item">
+							<li class:list={['post-item', { 'pinned-frame': post.data.pinned }]}>
 								<a class="post-link" href={`/blog/${post.id}/`}>
 									<div class="post-info">
 										<h2 class="post-title">{post.data.title}</h2>

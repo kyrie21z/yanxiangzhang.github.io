@@ -33,6 +33,7 @@ const allPosts = posts
 			url: `/blog/${post.id}/`,
 			date: post.data.pubDate.toISOString(),
 			category: catPath,
+			pinned: post.data.pinned,
 		};
 	});
 ---
@@ -129,11 +130,6 @@ const allPosts = posts
 				color: rgb(var(--gray));
 				pointer-events: none;
 			}
-			@media (prefers-color-scheme: dark) {
-				.search-input {
-					background: rgba(255, 255, 255, 0.05);
-				}
-			}
 			@media (max-width: 720px) {
 				main {
 					padding: 1rem;
@@ -158,6 +154,10 @@ const allPosts = posts
 			}
 			.search-result-item:first-child {
 				border-top: 1px solid rgb(var(--gray-light));
+			}
+			.search-result-item.pinned-frame {
+				margin: 0.9rem 0 0.75rem;
+				padding: 0.85rem;
 			}
 			.search-result-item a {
 				text-decoration: none;
@@ -254,7 +254,8 @@ const allPosts = posts
 					resultsList.innerHTML = matches.map((p) => {
 						const date = new Date(p.date).toLocaleDateString('en-us', { year: 'numeric', month: 'short', day: 'numeric' });
 						const desc = p.description ? '<span class="search-result-desc">' + p.description + '</span>' : '';
-						return '<li class="search-result-item"><a href="' + p.url + '"><span class="search-result-title">' + p.title + '</span><span class="search-result-meta">' + p.category + ' \u00b7 ' + date + '</span>' + desc + '</a></li>';
+						const pinnedClass = p.pinned ? ' pinned-frame' : '';
+						return '<li class="search-result-item' + pinnedClass + '"><a href="' + p.url + '"><span class="search-result-title">' + p.title + '</span><span class="search-result-meta">' + p.category + ' \u00b7 ' + date + '</span>' + desc + '</a></li>';
 					}).join('');
 				}
 				resultsList.classList.add('active');
