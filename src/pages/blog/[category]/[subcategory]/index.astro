@@ -37,6 +37,8 @@ export async function getStaticPaths() {
 
 const { category, subcategory } = Astro.params;
 const { posts } = Astro.props;
+const showAiDisclosure =
+	category === 'cs-major-courses' && subcategory === 'introduction-to-algorithms';
 ---
 
 <!doctype html>
@@ -61,10 +63,19 @@ const { posts } = Astro.props;
 				color: var(--accent);
 			}
 			h1 {
-				margin-bottom: 1.5rem;
+				margin-bottom: 0;
 				color: rgb(var(--black));
 				font-family: var(--font-serif);
 				font-size: 1.75rem;
+			}
+			.page-description {
+				margin: 0.35rem 0 1.5rem;
+				color: rgb(var(--gray));
+				font-size: 0.9rem;
+				font-style: italic;
+			}
+			h1:not(:has(+ .page-description)) {
+				margin-bottom: 1.5rem;
 			}
 			.post-list {
 				list-style-type: none;
@@ -138,6 +149,9 @@ const { posts } = Astro.props;
 		<main>
 			<a class="back-link" href={`/blog/${category}/`}>← Back to {category}</a>
 			<h1>{subcategory}</h1>
+			{showAiDisclosure && (
+				<p class="page-description">Mostly AI generated, but well organized.</p>
+			)}
 			<section>
 				{posts.length > 0 ? (
 					<ul class="post-list">
