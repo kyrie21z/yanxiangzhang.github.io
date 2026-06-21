@@ -1,7 +1,7 @@
 ---
 title: "Introduction to Algorithms 算法导论"
 description: "重点 第一章 What is Algorithm 1. 算法的概念 2. 算法定义中的 5 个性质: 输入, 输出, 确定性, 有穷性, 有效性 第二章 算法设计与分析基础 1. 如何做算法设计, 算法分析 1. 基本思想 2. 具体过程 3. 伪代码 4. 时空间复杂度 5. 需要问题具有的性质 6. 典型例子..."
-pubDate: "2026-06-19"
+pubDate: "2026-06-21"
 pinned: true
 ---
 # 重点
@@ -66,7 +66,7 @@ pinned: true
 ## 第十一章 散列表
 
 1. 散列函数如何设计
-2. 简单一次散列
+2. Direct Access Table
 3. 开放地址法, 探查序列
 4. **全域散列** important
 5. 完美散列
@@ -111,14 +111,14 @@ pinned: true
 
 1. 源与汇的概念
 2. 边的容量
-3. 流 < 容量
+3. 流 <= 容量
 4. 流入 == 流出
 5. 割的概念: 割出来的两个集合, 其中一个包含源, 另一个包含汇
 6. 如何求最大流
 	1. 找增广路径
 		1. 引入残流图
 		2. 给定一个网络, 如何画残流图
-	2. 福特福克森算法
+	2. [Ford-Fulkerson Algorithm 福特福克森算法](/blog/cs-major-courses/introduction-to-algorithms/ford-fulkerson-algorithm-福特福克森算法/)
 		1. 割的容量
 		2. 割的流量
 
@@ -126,6 +126,7 @@ pinned: true
 
 1. [Branch and Bound 分支限界法](/blog/cs-major-courses/introduction-to-algorithms/branch-and-bound-分支限界法/)
 2. [Backtracking 回溯法](/blog/cs-major-courses/introduction-to-algorithms/backtracking-回溯法/)
+3. 什么是解空间树?
 
 ---
 
@@ -143,7 +144,7 @@ pinned: true
 1. 空间树常规分为哪两种树: 子集树, 排列树
 2. 回溯法
 3. DP 需要问题具备的性质
-4. 散列的方法: 开放地址法和直接寻址法
+4. 散列的方法: 开放地址法和直接寻址和
 5. 最少需要多少次比较
 
 ## 简答题 (4 × 5 = 20 分)
@@ -197,9 +198,9 @@ pinned: true
 
 ## [Dynamic Programming 动态规划](/blog/cs-major-courses/introduction-to-algorithms/dynamic-programming-动态规划/)
 
-- [Longest Common Subsequence (LCS) 最长子序列](/blog/cs-major-courses/introduction-to-algorithms/longest-common-subsequence-lcs-最长子序列/) — 自顶向下
+- [Longest Common Subsequence (LCS) 最长公共子序列](/blog/cs-major-courses/introduction-to-algorithms/longest-common-subsequence-lcs-最长公共子序列/) — 自顶向下
 - [Matrix Chain Multiplication (MCM) 矩阵连乘](/blog/cs-major-courses/introduction-to-algorithms/matrix-chain-multiplication-mcm-矩阵连乘/) — 自底向上
-- [01 Knapsack Problem 01背包](/blog/cs-major-courses/introduction-to-algorithms/01-knapsack-problem-01背包/)
+- [0-1 Knapsack Problem 0-1背包 DP](/blog/cs-major-courses/introduction-to-algorithms/0-1-knapsack-problem-0-1背包-dp/)
 
 ## [Greedy Algorithms 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithms-贪心算法/)
 
@@ -222,4 +223,4 @@ pinned: true
 
 ## [Backtracking 回溯法](/blog/cs-major-courses/introduction-to-algorithms/backtracking-回溯法/)
 
-## [分支限界](/blog/cs-major-courses/introduction-to-algorithms/分支限界/)
+## [Branch and Bound 分支限界法](/blog/cs-major-courses/introduction-to-algorithms/branch-and-bound-分支限界法/)

@@ -1,10 +1,10 @@
 ---
 title: "Johnson's Algorithm"
-description: "Johnson's Algorithm Johnson 算法用于求解 所有顶点对最短路径 （All Pairs Shortest Paths, APSP），尤其适合 稀疏图 。 它先用一次 Bellman–Ford 计算势函数 $h$，把所有边重赋权为非负权边；然后从每个顶点运行一次 Dijkstra；最后将新图..."
+description: "Johnson's Algorithm 约翰逊算法 Johnson 算法用于求解 所有顶点对最短路径 （All Pairs Shortest Paths, APSP），尤其适合 稀疏图 。 它先用一次 Bellman–Ford 计算势函数 $h$，把所有边重赋权为非负权边；然后从每个顶点运行一次 Dijkstra..."
 pubDate: "2026-06-17"
 ---
 
-# Johnson's Algorithm
+# Johnson's Algorithm 约翰逊算法
 
 > [!abstract] 核心结论
 > Johnson 算法用于求解**所有顶点对最短路径**（All-Pairs Shortest Paths, APSP），尤其适合**稀疏图**。
@@ -838,15 +838,15 @@ $$
 > [!quote]
 > Johnson 算法 = **一次 Bellman–Ford 消除负边影响** + **每个顶点一次 Dijkstra** + **距离还原**。
 
-## 15. 参考资料
-
-1. Donald B. Johnson. 1977. *Efficient Algorithms for Shortest Paths in Sparse Networks*. **Journal of the ACM**, 24(1): 1–13. DOI: `10.1145/321992.321993`.
-2. Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein. 2009. *Introduction to Algorithms*, 3rd ed., Section 25.3: Johnson's algorithm.
-3. Erik D. Demaine and Charles E. Leiserson. 2005. *Shortest Paths III*, MIT Introduction to Algorithms, Lecture 19.
-
-## 16. 相关笔记
+## 15. 相关笔记
 
 - [Shortest Path 最短路径](/blog/cs-major-courses/introduction-to-algorithms/shortest-path-最短路径/)
 - [Dijkstra's Algorithm 迪杰斯特拉算法](/blog/cs-major-courses/introduction-to-algorithms/dijkstras-algorithm-迪杰斯特拉算法/)
 - [Bellman-Ford Algotithm 贝尔曼福特算法](/blog/cs-major-courses/introduction-to-algorithms/bellman-ford-algotithm-贝尔曼福特算法/)
 - [Floyd-Warshall Algorithm 弗洛伊德华沙算法](/blog/cs-major-courses/introduction-to-algorithms/floyd-warshall-algorithm-弗洛伊德华沙算法/)
+
+## 16. 参考资料
+
+1. Donald B. Johnson. 1977. *Efficient Algorithms for Shortest Paths in Sparse Networks*. **Journal of the ACM**, 24(1): 1–13. DOI: `10.1145/321992.321993`.
+2. Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein. 2009. *Introduction to Algorithms*, 3rd ed., Section 25.3: Johnson's algorithm.
+3. Erik D. Demaine and Charles E. Leiserson. 2005. *Shortest Paths III*, MIT Introduction to Algorithms, Lecture 19.

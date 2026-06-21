@@ -1,7 +1,7 @@
 ---
 title: "BFPRT - Median of Medians BFPRT选择算法"
 description: "核心任务: Top K问题: 在一个数组中找第k小/大的元素 隶属于任务: Order Statistic 顺序统计量 参考方法: Quick Select 快速选择 算法实现: step1: 分组, 5个元素一组 step2: 找每组的中位数(给每组的5个数排序) step3: 找中位数中的中位数pivot s..."
-pubDate: "2026-04-03"
+pubDate: "2026-06-20"
 ---
 # 核心任务:
 	Top-K问题: 在一个数组中找第k小/大的元素
@@ -29,7 +29,7 @@ if i == k:
 elif i < k:
 	go to [ 小于 pivot ]
 elif i > k:
-	go to [ 大于 pivot]
+	go to [ 大于 pivot ]
 ```
 
 # 时间复杂度

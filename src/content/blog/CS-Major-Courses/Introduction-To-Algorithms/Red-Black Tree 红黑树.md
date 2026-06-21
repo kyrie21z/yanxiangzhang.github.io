@@ -852,3 +852,6 @@ flowchart TD
 - [Binary Search Tree 二叉搜索树](/blog/cs-major-courses/introduction-to-algorithms/binary-search-tree-二叉搜索树/)
 - [Hashing I 哈希](/blog/cs-major-courses/introduction-to-algorithms/hashing-i-哈希/)
 - [Order Statistic 顺序统计量](/blog/cs-major-courses/introduction-to-algorithms/order-statistic-顺序统计量/)
+
+## 22. 推荐视频
+- [红黑树 - 定义, 插入, 构建_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1Xm421x7Lg?)
