@@ -1,7 +1,7 @@
 ---
 title: "Introduction to Algorithms 算法导论"
 description: "重点 第一章 What is Algorithm 1. 算法的概念 2. 算法定义中的 5 个性质: 输入, 输出, 确定性, 有穷性, 有效性 第二章 算法设计与分析基础 1. 如何做算法设计, 算法分析 1. 基本思想 2. 具体过程 3. 伪代码 4. 时空间复杂度 5. 需要问题具有的性质 6. 典型例子..."
-pubDate: "2026-06-21"
+pubDate: "2026-06-24"
 pinned: true
 ---
 # 重点
@@ -98,7 +98,7 @@ pinned: true
 6. 典型例子
 7. 自顶向下 || 自底向上
 
-## **第十六章 [Greedy Algorithms 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithms-贪心算法/)**
+## **第十六章 [Greedy Algorithm 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithm-贪心算法/)**
 
 1. [Minimum Spanning Tree 最小生成树](/blog/cs-major-courses/introduction-to-algorithms/minimum-spanning-tree-最小生成树/)
 2. [Shortest Path 最短路径](/blog/cs-major-courses/introduction-to-algorithms/shortest-path-最短路径/)
@@ -202,7 +202,7 @@ pinned: true
 - [Matrix Chain Multiplication (MCM) 矩阵连乘](/blog/cs-major-courses/introduction-to-algorithms/matrix-chain-multiplication-mcm-矩阵连乘/) — 自底向上
 - [0-1 Knapsack Problem 0-1背包 DP](/blog/cs-major-courses/introduction-to-algorithms/0-1-knapsack-problem-0-1背包-dp/)
 
-## [Greedy Algorithms 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithms-贪心算法/)
+## [Greedy Algorithm 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithm-贪心算法/)
 
 - [Shortest Path 最短路径](/blog/cs-major-courses/introduction-to-algorithms/shortest-path-最短路径/)
 	- [Dijkstra 算法](/blog/cs-major-courses/introduction-to-algorithms/dijkstras-algorithm-迪杰斯特拉算法/)

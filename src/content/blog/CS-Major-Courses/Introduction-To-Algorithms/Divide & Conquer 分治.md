@@ -261,7 +261,7 @@ $$
 |---|---|---|
 | 分治 | 拆成较独立子问题，递归求解后合并 | 子问题相对独立、自相似 |
 | [Dynamic Programming 动态规划](/blog/cs-major-courses/introduction-to-algorithms/dynamic-programming-动态规划/) | 保存重叠子问题结果，避免重复计算 | 最优子结构 + 重叠子问题 |
-| [Greedy Algorithms 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithms-贪心算法/) | 每一步做局部最优选择 | 贪心选择性质 + 最优子结构 |
+| [Greedy Algorithm 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithm-贪心算法/) | 每一步做局部最优选择 | 贪心选择性质 + 最优子结构 |
 | [Backtracking 回溯法](/blog/cs-major-courses/introduction-to-algorithms/backtracking-回溯法/) | 深度优先搜索解空间树并剪枝 | 组合搜索、约束满足 |
 | [Branch and Bound 分支限界法](/blog/cs-major-courses/introduction-to-algorithms/branch-and-bound-分支限界法/) | 用界函数控制搜索顺序和剪枝 | 优化搜索问题 |
 

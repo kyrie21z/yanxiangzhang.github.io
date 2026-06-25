@@ -66,7 +66,7 @@ $$
 
 ## 2. 基本思想
 
-活动选择问题使用 [Greedy Algorithms 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithms-贪心算法/) 求解。
+活动选择问题使用 [Greedy Algorithm 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithm-贪心算法/) 求解。
 
 贪心策略是:
 

@@ -521,7 +521,7 @@ $$
 - Traveling Salesman Problem 旅行商问题
 - [Branch and Bound 分支限界法](/blog/cs-major-courses/introduction-to-algorithms/branch-and-bound-分支限界法/)
 - [Dynamic Programming 动态规划](/blog/cs-major-courses/introduction-to-algorithms/dynamic-programming-动态规划/)
-- Greedy Algorithm 贪心算法
+- [Greedy Algorithm 贪心算法](/blog/cs-major-courses/introduction-to-algorithms/greedy-algorithm-贪心算法/)
 
 ## 11. 参考资料
 
