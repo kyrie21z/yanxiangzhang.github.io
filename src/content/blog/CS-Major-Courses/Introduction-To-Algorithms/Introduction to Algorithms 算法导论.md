@@ -2,7 +2,6 @@
 title: "Introduction to Algorithms 算法导论"
 description: "重点 第一章 What is Algorithm 1. 算法的概念 2. 算法定义中的 5 个性质: 输入, 输出, 确定性, 有穷性, 有效性 第二章 算法设计与分析基础 1. 如何做算法设计, 算法分析 1. 基本思想 2. 具体过程 3. 伪代码 4. 时空间复杂度 5. 需要问题具有的性质 6. 典型例子..."
 pubDate: "2026-06-24"
-pinned: true
 ---
 # 重点
 

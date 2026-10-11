@@ -137,7 +137,6 @@ function main() {
 			`title: ${JSON.stringify(title)}`,
 			`description: ${JSON.stringify(description)}`,
 			`pubDate: ${JSON.stringify(fileDate(sourcePath, metadata))}`,
-			...(name === ROOT_NOTE ? ['pinned: true'] : []),
 			'---',
 			'',
 		].join('\n');
