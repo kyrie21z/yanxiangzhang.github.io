@@ -28,3 +28,5 @@ pnpm-debug.log*
 
 Obsidian Vault/
 scripts/.publish-manifest.json
+.font-build/
+src/assets/fonts/maple-mono-subset.woff2

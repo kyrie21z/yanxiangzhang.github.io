@@ -2,8 +2,7 @@
 // Import the global.css file here so that it is included on
 // all pages through the use of the <BaseHead /> component.
 import '../styles/global.css';
-// KaTeX CSS for math rendering, bundled so it matches the installed katex version.
-import 'katex/dist/katex.min.css';
+import katexStyles from 'katex/dist/katex.min.css?url';
 import type { ImageMetadata } from 'astro';
 import FallbackImage from '../assets/blog-placeholder-1.jpg';
 import { SITE_TITLE } from '../consts';
@@ -13,11 +12,12 @@ interface Props {
 	description: string;
 	image?: ImageMetadata;
 	type?: 'website' | 'article';
+	hasMath?: boolean;
 }
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
-const { title, description, image = FallbackImage, type = 'website' } = Astro.props;
+const { title, description, image = FallbackImage, type = 'website', hasMath = false } = Astro.props;
 ---
 
 <!-- Global Metadata -->
@@ -36,9 +36,7 @@ const { title, description, image = FallbackImage, type = 'website' } = Astro.pr
 <!-- Font preloads -->
 <link rel="preload" href="/fonts/atkinson-regular.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="preload" href="/fonts/atkinson-bold.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+{hasMath && <link rel="stylesheet" href={katexStyles} />}
 
 <!-- Canonical URL -->
 <link rel="canonical" href={canonicalURL} />

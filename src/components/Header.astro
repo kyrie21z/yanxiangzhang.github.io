@@ -8,7 +8,7 @@ import HeaderLink from './HeaderLink.astro';
 		<span class="site-title"><a href="/">{SITE_TITLE}</a></span>
 		<div class="internal-links">
 			<HeaderLink href="/">Home</HeaderLink>
-			<HeaderLink href="/blog">Blog</HeaderLink>
+			<HeaderLink href="/blog">Notes</HeaderLink>
 		</div>
 		<div class="social-links">
 			<a href="https://github.com/kyrie21z" target="_blank">
@@ -26,7 +26,7 @@ import HeaderLink from './HeaderLink.astro';
 <style>
 	header {
 		margin: 0;
-		padding: 0.6em 1em;
+		padding: 1rem 1.5rem;
 		background: var(--bg, #fafaf8);
 		border-bottom: 1px solid rgb(var(--gray-light));
 	}
@@ -34,11 +34,11 @@ import HeaderLink from './HeaderLink.astro';
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		max-width: 720px;
+		max-width: 960px;
 		margin: 0 auto;
 	}
 	.site-title {
-		font-weight: 700;
+		font-weight: 500;
 		font-size: 1em;
 		font-family: var(--font-serif);
 	}
@@ -47,7 +47,11 @@ import HeaderLink from './HeaderLink.astro';
 		color: rgb(var(--black));
 	}
 	nav a {
-		padding: 0.3em 0.5em;
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		box-sizing: border-box;
+		padding: 0 0.5em;
 		color: rgb(var(--gray-dark));
 		text-decoration: none;
 		font-size: 0.9em;
@@ -67,10 +71,12 @@ import HeaderLink from './HeaderLink.astro';
 	.social-links a {
 		color: rgb(var(--gray));
 	}
+	.social-links svg { width: 20px; height: 20px; }
 	.social-links a:hover {
 		color: rgb(var(--black));
 	}
 	@media (max-width: 720px) {
+		header { padding: 0.85rem 1rem; }
 		.social-links {
 			display: none;
 		}

@@ -3,7 +3,9 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
+    "predev": "node scripts/build-fonts.mjs",
     "dev": "astro dev",
+    "prebuild": "node scripts/build-fonts.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "publish-algorithms": "node scripts/publish-introduction-to-algorithms.mjs",

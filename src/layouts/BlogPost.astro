@@ -9,6 +9,7 @@ import Header from '../components/Header.astro';
 
 type Props = CollectionEntry<'blog'>['data'] & {
 	headings?: MarkdownHeading[];
+	hasMath?: boolean;
 };
 
 const {
@@ -19,6 +20,7 @@ const {
 	heroImage,
 	pinned = false,
 	headings = [],
+	hasMath = false,
 } = Astro.props;
 const tocHeadings = headings.filter((h) => h.depth <= 3);
 const allPosts = await getCollection('blog');
@@ -64,21 +66,23 @@ const jsonLd = JSON.stringify({
 
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={title} description={description} image={heroImage} type="article" />
+		<BaseHead title={title} description={description} image={heroImage} type="article" hasMath={hasMath} />
 		<script type="application/ld+json" set:html={jsonLd} />
 		<style>
 			main {
-				width: calc(100% - 2em);
+				width: 100%;
 				max-width: 100%;
 				margin: 0;
+				padding: 0;
 			}
 			.article-shell {
 				display: grid;
-				grid-template-columns: 220px minmax(0, 1fr) 260px;
-				column-gap: clamp(1.5rem, 2.5vw, 3rem);
+				grid-template-columns: 180px minmax(0, 740px) 220px;
+				justify-content: center;
+				column-gap: 2rem;
 				row-gap: 0;
 				align-items: start;
-				width: min(100% - 4rem, 1680px);
+				width: min(100% - 3rem, 1260px);
 				margin: 0 auto;
 				padding: 1.5rem 0 3rem;
 			}
@@ -118,6 +122,8 @@ const jsonLd = JSON.stringify({
 			.title h1 {
 				margin: 0 0 0.4em 0;
 				font-family: var(--font-serif);
+				font-size: clamp(2rem, 3vw, 2.55rem);
+				font-weight: 500;
 			}
 			.title.pinned-frame {
 				margin-top: 1rem;
@@ -155,9 +161,9 @@ const jsonLd = JSON.stringify({
 			}
 			.blog-nav-title {
 				margin: 0 0 0.65rem;
-				font-weight: 700;
+				font-weight: 600;
 				font-size: 0.86rem;
-				color: rgb(var(--black));
+				color: rgb(var(--gray));
 				text-transform: uppercase;
 				letter-spacing: 0.08em;
 			}
@@ -174,7 +180,7 @@ const jsonLd = JSON.stringify({
 			.blog-nav a {
 				display: block;
 				padding: 0.38rem 0.5rem;
-				border-radius: 3px;
+				border-radius: var(--radius-control);
 				color: rgb(var(--gray));
 				text-decoration: none;
 				transition: color 0.15s ease, background-color 0.15s ease;
@@ -231,9 +237,9 @@ const jsonLd = JSON.stringify({
 			}
 			.toc-title {
 				margin: 0 0 0.65rem;
-				font-weight: 700;
+				font-weight: 600;
 				font-size: 0.86rem;
-				color: rgb(var(--black));
+				color: rgb(var(--gray));
 				text-transform: uppercase;
 				letter-spacing: 0.08em;
 			}
@@ -250,7 +256,7 @@ const jsonLd = JSON.stringify({
 			.toc a {
 				display: block;
 				padding: 0.34rem 0.5rem;
-				border-radius: 3px;
+				border-radius: var(--radius-control);
 				text-decoration: none;
 				color: rgb(var(--gray));
 				transition: color 0.15s ease, background-color 0.15s ease;
@@ -267,9 +273,9 @@ const jsonLd = JSON.stringify({
 				font-weight: 600;
 				color: rgb(var(--gray-dark));
 			}
-			@media (max-width: 980px) {
+			@media (max-width: 1120px) {
 				.article-shell {
-					grid-template-columns: 210px minmax(0, 1fr);
+					grid-template-columns: 180px minmax(0, 740px);
 					justify-content: center;
 					column-gap: 1.5rem;
 					width: calc(100% - 3rem);
@@ -297,7 +303,7 @@ const jsonLd = JSON.stringify({
 			@media (max-width: 720px) {
 				.article-shell {
 					grid-template-columns: minmax(0, 1fr);
-					width: calc(100% - 2.5rem);
+					width: calc(100% - 2rem);
 					padding-top: 0.5rem;
 					row-gap: 1rem;
 				}

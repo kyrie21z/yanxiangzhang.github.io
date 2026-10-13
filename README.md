@@ -83,6 +83,13 @@ heroImage: '../../assets/example.png'
 
 ## 本地开发
 
+需要 Node.js 和 Python 3.10+（包含 `venv`）。`npm run dev` 和 `npm run build`
+会先运行字体构建：首次在项目内的 `.font-build/` 安装固定版本的 fontTools 和
+Brotli；之后从当前 `src/` 文本生成等宽字体子集，新增文章中的字符会自动纳入。
+字符集不变且子集哈希一致时会复用缓存。完整字体保存在
+`scripts/fonts/maple-mono-full.woff2`，生成的子集由 Astro 加入
+文件哈希后发布，完整字体不会进入 `dist/`。这些 Python 依赖只用于构建。
+
 安装依赖：
 
 ```sh
