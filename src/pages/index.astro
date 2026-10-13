@@ -10,6 +10,7 @@ import monicaImage from '../assets/monica.png';
 
 const allPosts = await getCollection('blog');
 const latestPosts = allPosts
+	.filter((post) => !post.id.startsWith('cs-major-courses/'))
 	.sort(
 		(a, b) =>
 			Number(b.data.pinned) - Number(a.data.pinned) ||

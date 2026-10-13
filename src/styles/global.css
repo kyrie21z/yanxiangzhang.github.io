@@ -149,6 +149,43 @@ input {
 table {
 	width: 100%;
 }
+.prose .table-scroll {
+	max-width: 100%;
+	margin: 1.5rem 0;
+	overflow-x: auto;
+}
+.prose .table-scroll:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+}
+.prose table {
+	border-collapse: collapse;
+	font-size: 0.95em;
+	line-height: 1.65;
+}
+.prose th,
+.prose td {
+	min-width: 5rem;
+	padding: 0.65rem 0.85rem;
+	border: 1px solid rgba(var(--gray), 0.4);
+	vertical-align: top;
+}
+.prose th {
+	background: rgb(var(--gray-light));
+	font-weight: 700;
+}
+.prose th:not([align]) {
+	text-align: left;
+}
+.prose tbody tr:nth-child(even) {
+	background: rgba(var(--gray-light), 0.25);
+}
+.prose td > :first-child {
+	margin-top: 0;
+}
+.prose td > :last-child {
+	margin-bottom: 0;
+}
 img {
 	max-width: 100%;
 	height: auto;

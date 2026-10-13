@@ -5,6 +5,7 @@ import sitemap from '@astrojs/sitemap';
 import { defineConfig } from 'astro/config';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeScrollableTables from './src/plugins/rehype-scrollable-tables.mjs';
 import remarkCallouts from './src/plugins/remark-callouts.mjs';
 import remarkHighlights from './src/plugins/remark-highlights.mjs';
 
@@ -17,7 +18,7 @@ export default defineConfig({
 			theme: 'github-light',
 		},
 		remarkPlugins: [remarkMath, remarkCallouts, remarkHighlights],
-		rehypePlugins: [rehypeKatex],
+		rehypePlugins: [rehypeKatex, rehypeScrollableTables],
 	},
 	devToolbar: {
 		enabled: false,
