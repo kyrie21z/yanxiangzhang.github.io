@@ -41,8 +41,12 @@ const latestPosts = allPosts
 			
 			@media (max-width: 768px) {
 				.home-container {
+					box-sizing: border-box;
 					grid-template-columns: 1fr;
 					gap: 2rem;
+				}
+				.profile-card {
+					position: static;
 				}
 			}
 			

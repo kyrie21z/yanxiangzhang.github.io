@@ -206,6 +206,7 @@ const allPosts = posts
 					<circle cx="11" cy="11" r="8"></circle>
 					<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
 				</svg>
+				<label class="sr-only" for="search-input">Search posts</label>
 				<input type="text" class="search-input" id="search-input" placeholder="Search posts..." autocomplete="off" />
 			</div>
 			<ul class="search-results" id="search-results"></ul>
@@ -252,7 +253,7 @@ const allPosts = posts
 					resultsList.innerHTML = '<li class="search-no-result">No matching posts found</li>';
 				} else {
 					resultsList.innerHTML = matches.map((p) => {
-						const date = new Date(p.date).toLocaleDateString('en-us', { year: 'numeric', month: 'short', day: 'numeric' });
+						const date = new Date(p.date).toLocaleDateString('en-us', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 						const desc = p.description ? '<span class="search-result-desc">' + p.description + '</span>' : '';
 						const pinnedClass = p.pinned ? ' pinned-frame' : '';
 						return '<li class="search-result-item' + pinnedClass + '"><a href="' + p.url + '"><span class="search-result-title">' + p.title + '</span><span class="search-result-meta">' + p.category + ' \u00b7 ' + date + '</span>' + desc + '</a></li>';
