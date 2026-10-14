@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>AI 驱动游戏研究</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #f3f4f0;
+        --surface: #ffffff;
+        --surface-2: #eceee8;
+        --ink: #1b211d;
+        --ink-2: #454f48;
+        --muted: #6b756d;
+        --line: #d8dcd2;
+        --accent: #0c6b4f;
+        --accent-ink: #ffffff;
+        --accent-soft: #dcefe7;
+        --warn-bg: #fdf3dd;
+        --warn-ink: #7a5410;
+        --warn-line: #e8d194;
+        --code-bg: #eceee8;
+        --shadow: 0 1px 2px rgba(27, 33, 29, .06), 0 8px 24px -12px rgba(27, 33, 29, .18);
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1311;
+          --surface: #171c19;
+          --surface-2: #1f2621;
+          --ink: #e9ede9;
+          --ink-2: #c2cbc3;
+          --muted: #93a197;
+          --line: #2a332c;
+          --accent: #43bd97;
+          --accent-ink: #0b1512;
+          --accent-soft: #173528;
+          --warn-bg: #2c2410;
+          --warn-ink: #e5c26b;
+          --warn-line: #57481d;
+          --code-bg: #20261f;
+          --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { scroll-padding-top: 24px; }
+      @media (prefers-reduced-motion: no-preference) {
+        html { scroll-behavior: smooth; }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
+        font-size: 16.5px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+      a:hover { text-decoration-thickness: 2px; }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
+      h1, h2, h3 { font-family: "Newsreader", "Noto Serif SC", Georgia, serif; font-weight: 600; line-height: 1.15; margin: 0; }
+      h2 { font-size: clamp(1.7rem, 3.4vw, 2.3rem); letter-spacing: -.01em; }
+      h3 { font-size: 1.3rem; }
+      p { margin: 0 0 1em; }
+      .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+      /* ---------- header / lede ---------- */
+      header { padding: 56px 0 8px; }
+      .dateline {
+        font-family: "IBM Plex Mono", monospace; font-size: .8rem; letter-spacing: .04em;
+        color: var(--muted); margin-bottom: 18px;
+      }
+      header h1 { font-size: clamp(2.3rem, 6vw, 3.9rem); font-weight: 700; letter-spacing: -.015em; max-width: 15ch; }
+      .lede { font-size: 1.16rem; color: var(--ink-2); max-width: 68ch; margin-top: 20px; }
+      .lede strong { color: var(--ink); }
+      .stat-strip {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+        background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+        margin: 34px 0 10px;
+      }
+      .stat { background: var(--surface); padding: 18px 18px 14px; }
+      .stat b { display: block; font-family: "Newsreader", "Noto Serif SC", serif; font-size: 1.9rem; font-weight: 700; line-height: 1; }
+      .stat span { display: block; font-size: .82rem; color: var(--muted); margin-top: 7px; line-height: 1.45; }
+      nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 0; }
+      nav.toc a {
+        font-size: .86rem; font-weight: 500; color: var(--ink-2); text-decoration: none;
+        border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px;
+      }
+      nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+      /* ---------- sections ---------- */
+      section { padding: 52px 0 8px; }
+      .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+      .sec-num { font-family: "IBM Plex Mono", monospace; font-size: .85rem; color: var(--accent); font-weight: 600; }
+      .sec-sub { color: var(--ink-2); max-width: 72ch; }
+      .takeaway {
+        border-left: 3px solid var(--accent); background: var(--accent-soft);
+        padding: 13px 18px; border-radius: 0 8px 8px 0; margin: 20px 0 26px; font-size: 1.02rem;
+      }
+      .takeaway b { font-weight: 600; }
+      .src-line { font-size: .88rem; color: var(--muted); margin: 6px 0 0; }
+      .src-line a { color: var(--accent); }
+
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+      .card {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+        padding: 24px; box-shadow: var(--shadow);
+      }
+      .card h3 { margin-bottom: 10px; }
+      .card p:last-child { margin-bottom: 0; }
+      ul.tight { margin: 0; padding-left: 1.15em; }
+      ul.tight li { margin-bottom: .5em; }
+      ul.tight li:last-child { margin-bottom: 0; }
+      code {
+        font-family: "IBM Plex Mono", monospace; font-size: .86em;
+        background: var(--code-bg); padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+      }
+
+      /* ---------- agent loop explorer ---------- */
+      .loop { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+      .loop-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+      .loop-tabs button {
+        appearance: none; border: 0; background: transparent; cursor: pointer;
+        font: inherit; font-size: .95rem; font-weight: 500; color: var(--ink-2);
+        padding: 14px 18px; border-bottom: 3px solid transparent; margin-bottom: -1px;
+      }
+      .loop-tabs button:hover { color: var(--ink); }
+      .loop-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+      .loop-tabs button .n { font-family: "IBM Plex Mono", monospace; font-size: .78rem; margin-right: 7px; opacity: .75; }
+      .loop-body { padding: 24px 26px 26px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 30px; }
+      .loop-body h3 { margin-bottom: 8px; }
+      .loop-formula {
+        font-family: "IBM Plex Mono", monospace; font-size: .9rem; background: var(--code-bg);
+        border-radius: 8px; padding: 14px 16px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+      }
+      .loop-formula .k { color: var(--accent); font-weight: 600; }
+
+      /* ---------- chart ---------- */
+      .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px 26px; box-shadow: var(--shadow); }
+      .chart-card h3 { margin-bottom: 4px; }
+      .chart-note { font-size: .88rem; color: var(--muted); }
+      .chart-svg { width: 100%; height: auto; display: block; margin-top: 14px; }
+      .chart-svg .bar { fill: var(--accent); }
+      .chart-svg .bar-dim { fill: var(--muted); opacity: .55; }
+      .chart-svg text { font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif; fill: var(--ink); }
+      .chart-svg .val { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+      .chart-svg .lbl { fill: var(--ink-2); }
+
+      .emerge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 26px; }
+      .emerge .cell { border-top: 2px solid var(--accent); padding-top: 12px; }
+      .emerge b { display: block; font-family: "Newsreader", "Noto Serif SC", serif; font-size: 1.55rem; line-height: 1.1; }
+      .emerge span { font-size: .9rem; color: var(--ink-2); display: block; margin-top: 5px; }
+
+      .warn {
+        background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px;
+        padding: 16px 20px; color: var(--warn-ink); font-size: .95rem;
+      }
+      .warn b { font-weight: 600; }
+      .flag {
+        display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: .72rem; font-weight: 600;
+        background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line);
+        border-radius: 999px; padding: 1px 9px; vertical-align: 2px; margin-left: 6px;
+      }
+
+      /* ---------- tables ---------- */
+      .tbl-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+      table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+      th, td { text-align: left; vertical-align: top; padding: 14px 18px; }
+      thead th { background: var(--surface-2); font-size: .8rem; letter-spacing: .06em; color: var(--ink-2); }
+      tbody tr + tr td { border-top: 1px solid var(--line); }
+      td:first-child { font-weight: 600; white-space: nowrap; }
+      td ul { margin: 0; padding-left: 1.1em; }
+      td li { margin-bottom: .3em; }
+
+      /* ---------- landmark blocks ---------- */
+      .landmark { display: grid; grid-template-columns: 240px 1fr; gap: 26px; padding: 26px 0; border-top: 1px solid var(--line); }
+      .landmark:first-of-type { border-top: 0; }
+      .landmark .meta h3 { font-size: 1.45rem; }
+      .landmark .meta .org { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+      .landmark .meta .links { margin-top: 12px; font-size: .88rem; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+      .quickref { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+      .quickref .qr { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+      .quickref .qr h4 { margin: 0 0 6px; font-size: 1rem; font-weight: 600; }
+      .quickref .qr p { font-size: .92rem; color: var(--ink-2); margin: 0 0 8px; }
+      .quickref .qr a { font-size: .86rem; }
+
+      /* ---------- techniques ---------- */
+      .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .tech { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; box-shadow: var(--shadow); }
+      .tech h3 { margin-bottom: 12px; }
+      .tech h3 .step { font-family: "IBM Plex Mono", monospace; font-size: .8rem; color: var(--accent); display: block; margin-bottom: 5px; letter-spacing: .03em; }
+      .tech p { font-size: .97rem; color: var(--ink-2); }
+      .tech p b, .tech li b { color: var(--ink); }
+      .tech ul { font-size: .97rem; color: var(--ink-2); }
+
+      /* ---------- starter path ---------- */
+      .mvp {
+        background: var(--accent); color: var(--accent-ink); border-radius: 14px; padding: 28px 30px; margin-bottom: 26px;
+      }
+      .mvp h3 { font-size: 1.5rem; margin-bottom: 10px; }
+      .mvp p { margin: 0; max-width: 74ch; }
+      .mvp .mono { opacity: .85; font-size: .85rem; display: block; margin-bottom: 10px; }
+      .frameworks { counter-reset: fw; display: flex; flex-direction: column; gap: 14px; margin-bottom: 34px; }
+      .fw {
+        display: grid; grid-template-columns: 44px 1fr; gap: 16px; background: var(--surface);
+        border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; box-shadow: var(--shadow);
+      }
+      .fw::before {
+        counter-increment: fw; content: counter(fw);
+        font-family: "Newsreader", "Noto Serif SC", serif; font-size: 1.7rem; font-weight: 700; color: var(--accent); line-height: 1;
+      }
+      .fw h3 { font-size: 1.2rem; margin-bottom: 4px; }
+      .fw p { font-size: .96rem; color: var(--ink-2); margin: 0; }
+      .fw .best { font-weight: 600; color: var(--ink); }
+      .projects { display: flex; flex-direction: column; gap: 16px; }
+      .project {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px 26px; box-shadow: var(--shadow);
+        display: grid; grid-template-columns: 1fr 250px; gap: 28px;
+      }
+      .project h3 { margin-bottom: 8px; }
+      .project p { color: var(--ink-2); font-size: .97rem; }
+      .project dl { margin: 0; font-size: .9rem; }
+      .project dt { font-family: "IBM Plex Mono", monospace; font-size: .72rem; letter-spacing: .07em; color: var(--muted); margin-top: 12px; }
+      .project dt:first-child { margin-top: 0; }
+      .project dd { margin: 3px 0 0; color: var(--ink); }
+
+      /* ---------- open questions / sources ---------- */
+      ol.openq { padding-left: 1.3em; margin: 0; }
+      ol.openq li { margin-bottom: .8em; color: var(--ink-2); }
+      ol.openq li b { color: var(--ink); }
+      ol.sources { padding-left: 1.4em; margin: 0; font-size: .94rem; }
+      ol.sources li { margin-bottom: .55em; color: var(--ink-2); overflow-wrap: anywhere; }
+      ol.sources li b { color: var(--ink); font-weight: 600; }
+      footer { padding: 48px 0 60px; margin-top: 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+      footer p { max-width: 74ch; }
+
+      /* ---------- responsive ---------- */
+      @media (max-width: 860px) {
+        .stat-strip { grid-template-columns: 1fr 1fr; }
+        .grid-2, .tech-grid { grid-template-columns: 1fr; }
+        .loop-body { grid-template-columns: 1fr; }
+        .emerge { grid-template-columns: 1fr; gap: 20px; }
+        .landmark { grid-template-columns: 1fr; gap: 10px; }
+        .quickref { grid-template-columns: 1fr; }
+        .project { grid-template-columns: 1fr; gap: 6px; }
+        table, thead, tbody, tr, th, td { display: block; }
+        thead { position: absolute; left: -9999px; }
+        tbody tr { padding: 10px 0; }
+        tbody tr + tr { border-top: 1px solid var(--line); }
+        tbody tr td { border-top: 0 !important; padding: 5px 18px; }
+        td:first-child { white-space: normal; font-size: 1.05rem; padding-top: 8px; }
+        td[data-label]::before {
+          content: attr(data-label); display: block; font-family: "IBM Plex Mono", monospace;
+          font-size: .7rem; letter-spacing: .07em; color: var(--muted); margin-bottom: 2px;
+        }
+        td:first-child::before { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="dateline">研究简报 · 收集于 2026 年 10 月 14 日</p>
+        <h1>AI 驱动游戏与多智能体世界</h1>
+        <p class="lede">
+          一份为构建多智能体世界游戏而整理的实地指南，汇集了定义这一领域的论文、开源框架和已发布的游戏作品。该领域源于 2023 年的两大支柱——
+          斯坦福的<strong>生成式智能体</strong>（“Smallville”）和 Google DeepMind 的
+          <strong>Concordia</strong>——再加上 Altera 的 1000 个智能体
+          <strong>Project Sid</strong> 等产业级扩展，如今已通过 NVIDIA ACE 和
+          Latitude 的 Voyage 等平台进入商业游戏。务实的课程路径：从 a16z 的开源
+          <strong>AI Town</strong> 或 Concordia 入手，让 3–8 个智能体运行 Park 的记忆–反思–规划循环，
+          并通过 Ollama 在本地模型上运行一切，让 API 账单保持在 0 美元。
+        </p>
+        <div class="stat-strip">
+          <div class="stat"><b>25</b><span>斯坦福 Smallville 中的智能体数量——经典的可信智能体小镇（2023）</span></div>
+          <div class="stat"><b>1,000+</b><span>Altera 的 Project Sid 中的智能体数量，在 Minecraft 中形成角色、经济和宗教（2024）</span></div>
+          <div class="stat"><b>1M</b><span>CAMEL-AI 的 OASIS 社交媒体模拟同时模拟的智能体数量（2024）</span></div>
+          <div class="stat"><b>$0</b><span>推荐课程配置的边际成本——使用 Ollama 进行本地推理</span></div>
+        </div>
+        <nav class="toc" aria-label="章节">
+          <a href="#smallville">1 · Smallville 小镇</a>
+          <a href="#concordia">2 · Concordia</a>
+          <a href="#landmarks">3 · 标志性项目</a>
+          <a href="#commercial">4 · 商业 AI NPC</a>
+          <a href="#techniques">5 · 核心技术</a>
+          <a href="#starter">6 · 入门路径</a>
+          <a href="#open-questions">待核实问题</a>
+          <a href="#sources">参考来源</a>
+        </nav>
+      </header>
+
+      <!-- ============ 1. SMALLVILLE ============ -->
+      <section id="smallville">
+        <div class="sec-head"><span class="sec-num">01</span><h2>斯坦福的生成式智能体——“Smallville”</h2></div>
+        <p class="sec-sub">
+          Park、O'Brien、Cai、Morris、Liang 与 Bernstein，<em>UIST 2023（最佳论文）</em>。25 个
+          由 LLM 驱动的智能体生活在一个类似《模拟人生》的 2D 瓦片地图小镇中，跨越多个游戏日。每个智能体都有
+          人设、记忆、日常作息和人际关系——没有脚本；行为由人格描述加上亲身经历生成。原始在线演示已下线，但代码是
+          开源的，论文可免费获取。
+        </p>
+        <p class="src-line">
+          论文：<a href="https://arxiv.org/abs/2304.03442">arxiv.org/abs/2304.03442</a> ·
+          代码：<a href="https://github.com/joonspk-research/generative_agents">github.com/joonspk-research/generative_agents</a>
+        </p>
+        <div class="takeaway"><b>要点：</b>这是可信 LLM 智能体的基础架构
+          ——记忆流 + 反思 + 规划——也是几乎所有后续智能体记忆
+          工作（MemGPT、Zep 以及下文的框架）所依托的基线。</div>
+
+        <h3 style="margin-bottom:14px;">智能体如何工作——经典循环</h3>
+        <div class="loop" role="group" aria-label="生成式智能体架构探索器">
+          <div class="loop-tabs" role="tablist" aria-label="智能体循环阶段">
+            <button role="tab" id="tab-memory" aria-selected="true" aria-controls="panel-loop" data-stage="memory"><span class="n">1</span>记忆流</button>
+            <button role="tab" id="tab-retrieval" aria-selected="false" aria-controls="panel-loop" data-stage="retrieval"><span class="n">2</span>检索</button>
+            <button role="tab" id="tab-reflection" aria-selected="false" aria-controls="panel-loop" data-stage="reflection"><span class="n">3</span>反思</button>
+            <button role="tab" id="tab-planning" aria-selected="false" aria-controls="panel-loop" data-stage="planning"><span class="n">4</span>规划与行动</button>
+          </div>
+          <div class="loop-body" id="panel-loop" role="tabpanel" aria-live="polite">
+            <div>
+              <h3 id="loop-title">记忆流</h3>
+              <p id="loop-text" style="color:var(--ink-2); margin:0;"></p>
+            </div>
+            <div class="loop-formula" id="loop-formula"></div>
+          </div>
+        </div>
+
+        <div style="height:26px"></div>
+        <div class="grid-2">
+          <div class="chart-card">
+            <h3>可信度：完整架构 vs 消融实验</h3>
+            <p class="chart-note">来自一项有 100 名人类评分者参与的受控评估的 TrueSkill μ 值。完整
+              架构击败了每一个消融版本——也击败了由人类众包工作者手工编写的智能体。完整版 vs 无记忆版的
+              Cohen's d = 8.16，论文将其描述为“代表了此前最先进的水平”。</p>
+            <svg class="chart-svg" viewBox="0 0 640 252" role="img" aria-label="TrueSkill 可信度分数条形图：完整架构 29.89，无反思 26.88，无反思加无规划 25.64，众包工作者编写 22.95，无记忆 21.21。">
+              <!-- axis max 32 -->
+              <g font-size="13">
+                <text class="lbl" x="0" y="24">完整架构</text>
+                <rect class="bar" x="190" y="8" width="373.6" height="20" rx="3"></rect>
+                <text class="val" x="572" y="24">29.89</text>
+
+                <text class="lbl" x="0" y="74">无反思</text>
+                <rect class="bar-dim" x="190" y="58" width="336" height="20" rx="3"></rect>
+                <text class="val" x="534" y="74">26.88</text>
+
+                <text class="lbl" x="0" y="124">无反思 + 无规划</text>
+                <rect class="bar-dim" x="190" y="108" width="320.5" height="20" rx="3"></rect>
+                <text class="val" x="519" y="124">25.64</text>
+
+                <text class="lbl" x="0" y="174">众包工作者编写</text>
+                <rect class="bar-dim" x="190" y="158" width="286.9" height="20" rx="3"></rect>
+                <text class="val" x="485" y="174">22.95</text>
+
+                <text class="lbl" x="0" y="224">无记忆</text>
+                <rect class="bar-dim" x="190" y="208" width="265.1" height="20" rx="3"></rect>
+                <text class="val" x="463" y="224">21.21</text>
+              </g>
+            </svg>
+            <p class="chart-note" style="margin:6px 0 0;">反思是可信度提升的最大单一贡献因素
+              ——这正是上文循环值得忠实实现、而不是简单地把 LLM 套在状态机上的原因。</p>
+          </div>
+          <div class="card">
+            <h3>涌现了什么——未写脚本</h3>
+            <p style="color:var(--ink-2);">以下内容均未被编程实现。只有一个智能体被植入了举办情人节派对的想法，小镇其余的组织工作都是自行完成的。</p>
+            <div class="emerge" style="grid-template-columns:1fr; gap:18px; margin-top:16px;">
+              <div class="cell"><b>受邀 12 人 → 到场 5 人</b><span>派对的想法在智能体之间传播：发出邀请、协调安排，并自主出席活动。</span></div>
+              <div class="cell"><b>1 → 8 个智能体（4% → 32%）</b><span>Sam 的市长竞选通过对话扩散，直到全镇三分之一的人都知道了这件事。</span></div>
+              <div class="cell"><b>0.167 → 0.74</b><span>随着智能体形成新的关系，小镇社交网络密度在模拟过程中不断增长。</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:20px"></div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>局限与成本</h3>
+            <ul class="tight" style="color:var(--ink-2);">
+              <li><b style="color:var(--ink);">真实 API 成本。</b>基于 <code>gpt-3.5-turbo</code> 构建；长时间的多智能体运行需要花真金白银——按 2023 年的价格，每次运行需数十美元。没有任何来源给出 Smallville 的确切账单（见待核实问题）。如今在本地模型上复现是免费的。</li>
+              <li><b style="color:var(--ink);">速度慢。</b>顺序执行的观察 → 反思 → 规划循环是延迟瓶颈；没有任何环节以帧率运行——世界以模拟节拍推进。</li>
+              <li><b style="color:var(--ink);">失效模式。</b>智能体会陷入重复循环、幻觉出不存在的事件，并在缺乏记忆锚定时逐渐跑偏。这是一个研究原型，不是游戏引擎集成方案。</li>
+              <li><b style="color:var(--ink);">代码已冻结。</b>2023 年的 Python 代码库，锁定在早期的 OpenAI API 上，是一个参考实现，而非持续维护的产品。现代的重新实现（AI Town、Concordia）是更好的起点——但架构模式本身仍然是标准。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>2024 年的后续研究：1000 名真实的人</h3>
+            <p style="color:var(--ink-2);">Park 等人的<em>《1000 人的生成式智能体模拟》</em>
+              （2024）将智能体建立在对 1052 名真实个体的定性访谈之上，并以
+              <b style="color:var(--ink);">85% 的准确率</b>复现了综合社会调查（General Social Survey）的回答
+              ——这是个体层面行为保真度的黄金标准，且目前仍然是最新的，未被取代。</p>
+            <p style="color:var(--ink-2);">论文：<a href="https://arxiv.org/abs/2411.10109">arxiv.org/abs/2411.10109</a>。
+              第一作者 Joon Sung Park 此后共同创立了 <b style="color:var(--ink);">Simile AI</b>，致力于
+              将该方法商业化。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 2. CONCORDIA ============ -->
+      <section id="concordia">
+        <div class="sec-head"><span class="sec-num">02</span><h2>Google DeepMind 的 Concordia</h2></div>
+        <p class="sec-sub">
+          Vezhnevets 等人（Google DeepMind），arXiv 2023 年 12 月。Concordia 是一个用于构建
+          语言介导模拟的库——“将 Smallville 做成一个库”。智能体通过一个灵活的
+          <b>组件系统</b>产生行为，该系统协调两个基本操作：LLM 调用和联想记忆
+          检索。一个特殊的智能体——<b>游戏主持人（Game Master, GM）</b>——借鉴自桌面角色扮演游戏，负责模拟
+          环境：智能体通过<em>用自然语言描述自己想做什么</em>来采取行动，
+          GM 则将这些描述转化为具体结果，在物理世界中检查物理合理性，或在数字世界中发出真实的 API 调用。它是为科学研究而设计的
+          ——用于实验、数字服务评估和合成数据——而不是作为一款游戏。
+        </p>
+        <p class="src-line">
+          论文：<a href="https://arxiv.org/abs/2312.03664">arxiv.org/abs/2312.03664</a> ·
+          代码：<a href="https://github.com/google-deepmind/concordia">github.com/google-deepmind/concordia</a> ·
+          PyPI 包：<code>gdm-concordia</code>
+        </p>
+        <div class="takeaway"><b>要点：</b>这是用于生成式智能体建模的研究级、持续维护的 Python 框架
+          ——而其游戏主持人模式（LLM 提出，引擎裁决）是最值得借鉴到你自己游戏中的、最干净的行动裁决设计。</div>
+
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th scope="col">维度</th><th scope="col">Smallville（Park 等人）</th><th scope="col">Concordia（DeepMind）</th></tr></thead>
+            <tbody>
+              <tr><td>范围</td><td data-label="Smallville">一个固定的演示：25 个智能体，模拟人生风格小镇，固定时间步循环</td><td data-label="Concordia">通用 Python 库，适用于任意生成式智能体建模场景</td></tr>
+              <tr><td>行动裁决</td><td data-label="Smallville">智能体通过其规划器直接在地图上行动</td><td data-label="Concordia">智能体<em>提出</em>自然语言行动；游戏主持人负责裁决并将其落地</td></tr>
+              <tr><td>记忆 / 认知</td><td data-label="Smallville">固定的三段式循环（记忆流 → 反思 → 规划）</td><td data-label="Concordia">模块化组件系统——任何思维链或记忆操作都可以成为一个组件</td></tr>
+              <tr><td>世界</td><td data-label="Smallville">单一的 2D 物理沙盒</td><td data-label="Concordia">物理、社会<em>和数字</em>环境（API、应用）</td></tr>
+              <tr><td>目标</td><td data-label="Smallville">可信度 / 交互式拟像（HCI 领域）</td><td data-label="Concordia">科学实验、服务评估、合成数据</td></tr>
+              <tr><td>现状（2026）</td><td data-label="Smallville">已冻结的参考代码（2023）</td><td data-label="Concordia">持续开发中；据报道 v2.4.0（2026 年 3 月）带有异步模拟引擎、支持动态状态编辑的可视化界面和多模态支持<span class="flag">单一来源——需核实</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top:16px; color:var(--ink-2);">延伸阅读：“Concordia 设计模式”
+          （arXiv:2507.08892，2025 年 7 月）记录了重新设计的实体/组件/引擎架构。<span class="flag">单一来源——引用前请确认编号</span></p>
+      </section>
+
+      <!-- ============ 3. LANDMARKS ============ -->
+      <section id="landmarks">
+        <div class="sec-head"><span class="sec-num">03</span><h2>其他标志性多智能体世界项目</h2></div>
+        <p class="sec-sub">两大支柱之外的规模扩展与范式开创者——当你把智能体数量推高、赋予智能体可执行技能，或将模拟连接到消息总线上时，会发生什么。</p>
+
+        <div class="landmark">
+          <div class="meta">
+            <h3>Project Sid</h3>
+            <p class="org">Altera · arXiv 2024 年 10 月 · Minecraft</p>
+            <div class="links">
+              <a href="https://arxiv.org/abs/2411.00114">论文 — arxiv.org/abs/2411.00114</a>
+              <a href="https://github.com/altera-al/project-sid">代码 — github.com/altera-al/project-sid</a>
+              <a href="https://www.technologyreview.com/2024/11/27/1107377/a-minecraft-town-of-ai-characters-made-friends-invented-jobs-and-spread-religion/">MIT Technology Review 报道</a>
+            </div>
+          </div>
+          <div>
+            <p style="color:var(--ink-2);">Smallville 的 40 倍放大——25 个智能体变成了多达 <b style="color:var(--ink);">1000+
+              个智能体</b>，在 Minecraft 中运行（实验涵盖了从 10 个智能体起的多种配置），并发展出
+              角色、经济、宪法和宗教。其关键使能技术是
+              <b style="color:var(--ink);">PIANO</b>（通过神经编排的并行信息聚合）：约 10 个并发的认知模块
+              ——说话、行动、规划、社会意识、目标生成、记忆——由一个瓶颈式的“认知控制器”聚合，使智能体可以慢思考、快行动，实时运作。</p>
+            <p style="color:var(--ink-2);"><b style="color:var(--ink);">涌现了什么：</b>专业化分工
+              （农民、矿工、商人、祭司、守卫）、一个使用宝石货币的商人枢纽、一部在共享 Google 文档中投票通过并修订的宪法、通过贿赂传播的飞面神教（Pastafarianism），以及社区之间的迷因传播。</p>
+            <p style="color:var(--ink-2); margin-bottom:0;"><b style="color:var(--ink);">局限：</b>超过
+              1000 个智能体后，Minecraft 服务器的算力耗尽（智能体间歇性无响应），且
+              关于智能体究竟有多自主、多依赖脚手架的问题仍然存在。Altera——首席执行官 Robert Yang，
+              前 MIT 研究人员——在 2024 年 5 月筹集了 900 万美元种子轮融资，致力于打造“数字人类”。</p>
+          </div>
+        </div>
+
+        <div class="landmark">
+          <div class="meta">
+            <h3>Voyager</h3>
+            <p class="org">Wang 等人，NVIDIA 等 · arXiv 2023 年 5 月 / TMLR 2024 · Minecraft</p>
+            <div class="links">
+              <a href="https://arxiv.org/abs/2305.16291">论文 — arxiv.org/abs/2305.16291</a>
+              <a href="https://voyager.minedojo.org">项目网站 — voyager.minedojo.org</a>
+            </div>
+          </div>
+          <div>
+            <p style="color:var(--ink-2);">虽然是单智能体，却具有奠基意义——这是经典的<b style="color:var(--ink);">技能
+              库</b>论文，也是 Minecraft 中第一个基于 GPT-4 的具身终身学习者，且无需
+              微调。三大要素：（1）自动课程；（2）一个不断增长的
+              <em>可执行代码技能</em>库，技能可被检索和组合——将记忆做成代码，从而缓解
+              灾难性遗忘；（3）结合环境反馈、执行错误和基于真实游戏状态的自我验证的迭代式提示。</p>
+            <p style="color:var(--ink-2); margin-bottom:0;"><b style="color:var(--ink);">成果：</b>获得的
+              独特物品数量是此前最先进方法的 3.3 倍，达到木制工具里程碑的速度快 15.3 倍，探索距离长 2.3 倍；学到的技能可以迁移到新世界。这种“技能库即记忆”的模式可以直接复用到你自己项目中的 NPC 技能系统。</p>
+          </div>
+        </div>
+
+        <div class="quickref">
+          <div class="qr">
+            <h4>OASIS — CAMEL-AI（2024）</h4>
+            <p>在社交媒体模拟中支持多达 <b>100 万</b> 个 LLM 智能体：信息传播、
+              极化、羊群效应。开源。</p>
+            <a href="https://arxiv.org/abs/2411.11581">arxiv.org/abs/2411.11581</a> ·
+            <a href="https://github.com/camel-ai/oasis">github.com/camel-ai/oasis</a>
+          </div>
+          <div class="qr">
+            <h4>AgentSociety — 清华 FIB（2025）</h4>
+            <p>通过 MQTT 消息总线维持 <b>10000+ 个智能体</b>。工程启示：将
+              模拟分布在消息总线上，而不是挤在一个紧耦合的 Python 循环里。</p>
+            <a href="https://arxiv.org/abs/2502.08691">arxiv.org/abs/2502.08691</a> ·
+            <a href="https://github.com/tsinghua-fib-lab/AgentSociety">github.com/tsinghua-fib-lab/AgentSociety</a>
+          </div>
+          <div class="qr">
+            <h4>MetaGPT 与 CAMEL</h4>
+            <p><b>MetaGPT</b>（DeepWisdom，ICLR 2024）：基于角色的智能体团队，带有 SOP 编码的工作流和
+              发布–订阅共享消息池——为任务型团队而建，但其通信模式很有借鉴意义。<b>CAMEL</b>（KAUST/Eigent.ai）：通过初始提示实现双智能体角色扮演，是稳定自主智能体对话的早期标志性工作。</p>
+            <a href="https://arxiv.org/abs/2308.00352">MetaGPT — arxiv.org/abs/2308.00352</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4. COMMERCIAL ============ -->
+      <section id="commercial">
+        <div class="sec-head"><span class="sec-num">04</span><h2>商业游戏中的 AI NPC</h2></div>
+        <p class="sec-sub">2023 年的技术演示（NVIDIA ACE、Inworld）如今已成为 2025 年发布的正式功能。
+          量产模式是使用设备端小语言模型（SLM）驱动自主伙伴——而不是每句对话都调用云端。</p>
+        <div class="takeaway"><b>范围洞察：</b>到 2025 年底，Steam 新品销量前 100 中约 18% 使用了
+          某种形式的生成式 AI（TechRaptor，2026 年 1 月）——但其中大部分是美术资产/制作环节，而非
+          游戏内 NPC。游戏内生成式 NPC 仍然是例外——这正使一个可信的 NPC 世界仍然是一件与众不同的、值得构建的作品。</div>
+
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th scope="col">公司 / 技术</th><th scope="col">是什么</th><th scope="col">已发布作品 / 里程碑</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>NVIDIA ACE</td>
+                <td data-label="是什么">Avatar Cloud Engine 是一套由 RTX 加速的数字人技术（Riva ASR/TTS、Audio2Face、NeMo SteerLM）。在 CES 2025 上，它被重新定义为<em>自主游戏角色</em>，使用设备端 ACE SLM 以类人的频率感知、规划和行动，并具备多模态视觉/音频能力。</td>
+                <td data-label="作品 / 里程碑"><ul>
+                  <li><b>inZOI</b>（KRAFTON，Steam 抢先体验 2025）——“Smart Zoi”可共同游玩角色；首款搭载 ACE NPC 的游戏</li>
+                  <li><b>永劫无间 PC 版</b>（网易，2025）——本地推理 AI 队友</li>
+                  <li><b>解限机（Mecha BREAK）</b>——AI 机械师 NPC，已发布</li>
+                  <li><b>Dead Meat</b>——可自由审讯嫌疑人的侦探游戏</li>
+                  <li><b>PUBG: BATTLEGROUNDS</b>——“PUBG Ally”队友，测试中</li>
+                  <li><b>MIR5</b>（Wemade）——“学习型 Boss” Astrion</li>
+                  <li>独立游戏：<b>AI People</b>、<b>ZooPunk</b></li>
+                </ul></td>
+              </tr>
+              <tr>
+                <td>Inworld AI</td>
+                <td data-label="是什么">Character Engine + LLM，用于打造具备上下文感知、记忆和个性的动态 NPC。</td>
+                <td data-label="作品 / 里程碑"><ul>
+                  <li>育碧 <b>“Neo NPCs”</b> 原型（GDC 2024，与 NVIDIA ACE、育碧巴黎合作）<span class="flag">原型——尚无已发布作品确认</span></li>
+                  <li>GTA V、天际、辐射的模组</li>
+                  <li>Inworld 自研的侦探游戏</li>
+                </ul></td>
+              </tr>
+              <tr>
+                <td>Latitude — AI Dungeon → Voyage</td>
+                <td data-label="是什么"><b>AI Dungeon</b>（2019）是 LLM 叙事游戏的原型之作，拥有数百万玩家。<b>Voyage</b>（2026）是其继任者：一个基于 Latitude 的“World Engine”、历时 5 年打造的 AI RPG 创作平台——涵盖叙事、游戏状态管理、角色/物体追踪、背景故事与关系记忆。</td>
+                <td data-label="作品 / 里程碑"><ul>
+                  <li>Voyage 于 2026 年 8 月向所有人开放</li>
+                  <li>在 Arcanum RPGs 的 AI-RPG 基准测试中获得 4.4/5 分</li>
+                </ul></td>
+              </tr>
+              <tr>
+                <td>Hidden Door</td>
+                <td data-label="是什么">社交 AI 叙事平台——一个由互动图像小说构成的“叙事多重宇宙”，配有一位俏皮的 AI 叙述者。由 Hilary Mason 和 Matt Brandwein 创立；获 200 万美元种子前融资（Northzone，2022）。</td>
+                <td data-label="作品 / 里程碑"><ul>
+                  <li>平台处于开发/Alpha 阶段；截至研究日期，尚无重要的已发布作品<span class="flag">请核实当前状态</span></li>
+                </ul></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="src-line" style="margin-top:14px;">相关报道：
+          <a href="https://www.techpowerup.com/330824/nvidia-redefines-game-ai-with-ace-autonomous-game-characters">NVIDIA ACE 在 CES 2025（TechPowerUp）</a> ·
+          <a href="https://www.tomsguide.com/gaming/pc-gaming/i-played-with-nvidias-ai-npc-prototypes-now-they-real-and-i-fear-ill-never-finish-a-game-again">Tom's Guide ACE 上手体验</a> ·
+          <a href="https://www.dsogaming.com/news/inzoi-is-the-first-game-with-ai-powered-npcs-using-nvidia-ace/">inZOI / ACE（DSOGaming）</a> ·
+          <a href="https://techcrunch.com/2026/04/21/voyage-is-an-ai-rpg-platform-for-creating-custom-gaming-worlds-with-ai-generated-npc-interactions/">Latitude Voyage（TechCrunch）</a> ·
+          <a href="https://www.gamesindustry.biz/hidden-door-lands-usd2m-pre-seed-funding-for-ai-narrative">Hidden Door 融资（GamesIndustry.biz）</a></p>
+      </section>
+
+      <!-- ============ 5. TECHNIQUES ============ -->
+      <section id="techniques">
+        <div class="sec-head"><span class="sec-num">05</span><h2>学生开发者需要掌握的核心技术</h2></div>
+        <p class="sec-sub">上述论文背后的实操知识——如何构建一个智能体、如何让智能体高效交流、如何将预算控制在 0 美元、如何接入游戏引擎，以及如何证明结果确实是涌现的。</p>
+
+        <div class="tech-grid">
+          <div class="tech">
+            <h3><span class="step">架构</span>感知 → 记忆 → 规划 → 行动</h3>
+            <ul class="tight">
+              <li><b>感知 = 文字化描述。</b>LLM 基于文本进行推理，因此每个节拍都要将游戏状态序列化为自然
+                语言：“你在厨房里。Alice 在这里。你饿了。”</li>
+              <li><b>记忆分为三层：</b>存放近期事件的短期工作缓冲区；带有新近度/重要性/相关性检索的长期
+                记忆流；通过反思/总结将历史压缩为持久信念。对于技能密集型智能体，Voyager 的技能库——
+                将记忆做成可执行代码——比文本日志更有效。</li>
+              <li><b>规划是分层的</b>（天 → 小时 → 行动），并会根据事件重新规划。将快速
+                反应循环（对话、反应）与慢速深思循环分开——即 PIANO 式的并行。</li>
+              <li><b>行动必须经过裁决器。</b>自然语言意图 → 一个游戏主持人式的
+                验证器，负责检查游戏规则并应用效果。绝不能让 LLM 直接修改游戏状态。</li>
+            </ul>
+          </div>
+          <div class="tech">
+            <h3><span class="step">协调</span>多智能体通信</h3>
+            <ul class="tight">
+              <li><b>使用结构化的、带收件人的协议</b>——发送者、接收者、意图、紧急程度——而不是
+                自由形式的群聊。共享消息池 / 黑板（MetaGPT）可以减少广播开销。</li>
+              <li><b>拓扑结构很重要。</b>中心化协调者适合顺序任务；去中心化的
+                辩论/对话适合并行创意任务。Google Research 对 180 种配置的研究
+                （2026 年 1 月）发现，多智能体协调能提升可并行任务的表现，却会损害顺序任务——而没有通信的独立智能体会将错误放大多达
+                <b>17.2 倍</b>。要有意识地设计通信，而不是事后补上。</li>
+              <li><b>防止聊天死循环：</b>加入冲突解决机制（辩论循环、投票，或由 GM
+                裁决）并为每个智能体设定回合预算——无限对话循环是 CAMEL 时代已知的失效模式。</li>
+            </ul>
+          </div>
+          <div class="tech">
+            <h3><span class="step">性能</span>控制成本与延迟</h3>
+            <ul class="tight">
+              <li><b>绝不要每帧调用 LLM。</b>让世界以模拟节拍（秒级）运行，LLM
+                调用异步进行、置于游戏循环之外——AI Town 的模式是：将每秒 60 个引擎节拍批量合并为每秒 1 个持久化步骤。</li>
+              <li><b>模型级联：</b>用小而快的模型处理日常反应，大模型只用于
+                规划和反思——或者用一个本地小模型包办一切。</li>
+              <li><b>本地推理 = 边际成本 0 美元。</b>Ollama + 量化的 <code>.gguf</code> 模型；
+                LLMUnity 可在 Unity 引擎内运行，Laya 报告本地决策在 GPU 上仅需 5–40&nbsp;毫秒。</li>
+              <li><b>延迟技巧：</b>将 token 流式输出到对话中（先文字，后语音）；在玩家靠近时预取 NPC 可能的台词；缓存重复台词（店主的问候语成本
+                近乎为零）；用 Opus 压缩音频。</li>
+              <li><b>严格控制预算：</b>为每个智能体的每个节拍设定固定的 token 预算；反思是最昂贵的
+                部分——要少运行。</li>
+            </ul>
+          </div>
+          <div class="tech">
+            <h3><span class="step">集成</span>游戏引擎接入</h3>
+            <ul class="tight">
+              <li><b>Unity —— <a href="https://github.com/undreamai/LLMUnity">LLMUnity</a>：</b>通过 Package Manager 中的 git
+                URL 安装；可运行本地 <code>.gguf</code> 模型（llama.cpp），提供
+                <code>LLMAgent</code> 组件和流式 <code>Chat()</code> API。这是文档最完善的 Unity 路径。</li>
+              <li><b>Unreal：</b>没有占主导地位的开源插件；有文档记录的模式是使用一个本地 TCP 服务器
+                （Python/Node）托管 LLM + TTS，Unreal 作为客户端（见 “Breaking the Cloud Barrier,”
+                <a href="https://openreview.net/pdf?id=gNwi9SW3D3">OpenReview</a>）。</li>
+              <li><b>Godot：</b>通过 HTTP 使用相同的客户端–服务器模式——用 <code>HTTPRequest</code> 请求本地
+                Ollama/Concordia 服务器。与引擎无关，且最简单。</li>
+              <li><b>Minecraft：</b>事实上的研究世界——成本低、真值确定（方块
+                状态）。标准工具是机器人库（Mineflayer/Malmo 系列）；Altera、Voyager 和
+                Project Sid 都构建在 Minecraft 服务器之上。</li>
+              <li><b>最快的课程路径：</b>跳过引擎——将世界做成 Web 应用 / Canvas（像 AI
+                Town 的 PixiJS 瓦片地图）或 Python + Pygame。你会失去 3D 的精美度，但能省下数周时间。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px;">
+          <h3>评估涌现行为</h3>
+          <ul class="tight" style="color:var(--ink-2);">
+            <li><b style="color:var(--ink);">可信度评估：</b>借鉴 Park 等人的 TrueSkill 式人类
+              评分——向评分者展示带与不带你的功能的智能体行为日志。消融实验是你能产出的成本最低、最有力的证据。</li>
+            <li><b style="color:var(--ink);">对照目标进行验证：</b>Park 等人 2024 年的工作（对综合社会调查达到
+              85%）是范本，但对课程来说太重。更简单的做法：预先定义目标涌现
+              现象——信息扩散、角色分化、规范形成——并进行具体测量：网络密度、传播曲线、规则变更次数。</li>
+            <li><b style="color:var(--ink);">可借鉴的基准：</b><b style="color:var(--ink);">SimBench</b>
+              （<a href="https://arxiv.org/abs/2510.17516">arXiv:2510.17516</a>，2025）用于人类行为
+              模拟保真度；Project Sid 的文明级基准——角色专业化、
+              集体规则变更、文化传播——可作为观察清单。</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 6. STARTER PATH ============ -->
+      <section id="starter">
+        <div class="sec-head"><span class="sec-num">06</span><h2>实用的入门路径</h2></div>
+        <p class="sec-sub">按课程作业的规模来定：几周时间，一台机器，没有 API 账单。</p>
+
+        <div class="mvp">
+          <span class="mono">最小可行的多智能体世界游戏</span>
+          <h3>一个 2D 瓦片村庄，3–8 个智能体，一个本地 LLM</h3>
+          <p>智能体会醒来、去工作、吃饭，并在同处一地时聊天，运行 Park 循环（记忆流 +
+            反思 + 规划），并以浏览器 Canvas 或 Pygame 地图的形式呈现。加入一个共享事件日志和
+            一个种子事件——一场派对的传闻，或一次市长选举。以每真实秒 1 游戏分钟的速度模拟时间。一切都在本地通过 Ollama 运行，成本为 0 美元。可在 2–3 周内复现，且可演示。</p>
+        </div>
+
+        <h3 style="margin-bottom:14px;">推荐框架（按顺序）</h3>
+        <div class="frameworks">
+          <div class="fw">
+            <div>
+              <h3><a href="https://github.com/a16z-infra/ai-town">a16z AI Town</a></h3>
+              <p>采用 MIT 许可证的 TypeScript 入门套件，重新实现了 Smallville：Convex 后端（节拍引擎、
+                向量搜索记忆、事件日志）、PixiJS 地图，可插拔的 OpenAI/Ollama。
+                <span class="best">如果你想最快做出一个可运行的演示，这个最合适。</span></p>
+            </div>
+          </div>
+          <div class="fw">
+            <div>
+              <h3><a href="https://github.com/google-deepmind/concordia">Google DeepMind Concordia</a></h3>
+              <p>Python，可通过 pip 安装（<code>gdm-concordia</code>），采用游戏主持人模式进行裁决，附带教程
+                笔记本。<span class="best">如果作业看重干净的架构且你想用 Python，这个最合适。</span></p>
+            </div>
+          </div>
+          <div class="fw">
+            <div>
+              <h3><a href="https://github.com/undreamai/LLMUnity">LLMUnity</a></h3>
+              <p>带有引擎内本地 LLM 推理的 Unity 包。
+                <span class="best">如果作业要求使用 Unity，这个最合适。</span></p>
+            </div>
+          </div>
+          <div class="fw">
+            <div>
+              <h3>Minecraft + 机器人库</h3>
+              <p>Malmo/Mineflayer 系列。<span class="best">如果你想要 Project Sid / Voyager 风格的
+                具身智能体，这个最合适——但搭建成本最高。</span></p>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-bottom:14px;">三个项目构想（已限定范围）</h3>
+        <div class="projects">
+          <div class="project">
+            <div>
+              <h3>1 · 谣言传播村庄</h3>
+              <p>Fork AI Town：在一个 Smallville 风格的小镇中放置 5 个智能体。植入一条谣言，测量在有反思和无反思情况下的信息
+                扩散和态度变化<em>——消融研究就是你的评估章节。</em></p>
+            </div>
+            <dl>
+              <dt>技术栈</dt><dd>AI Town Fork</dd>
+              <dt>时间</dt><dd>约 2 周</dd>
+              <dt>交付成果</dt><dd>可玩的小镇 + 传播曲线</dd>
+            </dl>
+          </div>
+          <div class="project">
+            <div>
+              <h3>2 · 带有宪法的小型文明</h3>
+              <p>6–10 个智能体在 Concordia 中共享一种资源（一个鱼塘、一座花园）。他们必须通过游戏主持人提出、投票和修订规则；你则追踪规则的涌现和违规行为。</p>
+            </div>
+            <dl>
+              <dt>技术栈</dt><dd>Concordia</dd>
+              <dt>时间</dt><dd>约 3 周</dd>
+              <dt>交付成果</dt><dd>规则变更日志 + 可持续性指标（参见 GovSim）</dd>
+            </dl>
+          </div>
+          <div class="project">
+            <div>
+              <h3>3 · Unity 微型游戏中的 LLM 任务发布 NPC</h3>
+              <p>一个 5 分钟的 Unity 地牢，包含 3 个 NPC——店主、任务发布者、守卫——通过 LLMUnity 由本地模型驱动。NPC 们共享对玩家行为的记忆，并据此改变对话和任务。</p>
+            </div>
+            <dl>
+              <dt>技术栈</dt><dd>Unity + LLMUnity</dd>
+              <dt>时间</dt><dd>约 2–3 周</dd>
+              <dt>交付成果</dt><dd>可玩的构建版本 + 延迟/成本测量，证明在消费级硬件上实时运行的可行性</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ OPEN QUESTIONS ============ -->
+      <section id="open-questions">
+        <div class="sec-head"><span class="sec-num">?</span><h2>无法核实——待核实问题</h2></div>
+        <p class="sec-sub">如实标注，而非编造填充。在作业中引用以下任何一项之前，都值得做一次有针对性的核查。</p>
+        <div class="warn" style="background:var(--surface); border-color:var(--line); color:var(--ink-2); box-shadow:var(--shadow);">
+          <ol class="openq">
+            <li><b>原始 Smallville 运行的确切 API 成本</b>——没有任何来源给出具体数字；目前只知道
+              定性描述（运行于 <code>gpt-3.5-turbo</code>，按 2023 年价格每次运行需数十美元）。</li>
+            <li><b>Concordia v2.4.0 的细节（2026 年 3 月）和“Concordia 设计模式”论文
+              （arXiv:2507.08892）</b>——两者均来自单一的第三方笔记页面；引用前请在
+              <a href="https://github.com/google-deepmind/concordia/releases">Concordia 发布页面</a>
+              确认。</li>
+            <li><b>育碧 Neo NPCs 的状态</b>——最后报道为 GDC 2024 原型；尚无已确认的发布作品。</li>
+            <li><b>Hidden Door 当前的产品状态</b>——最后可靠的报道是 2022 年的融资/发布；
+              将其描述为当前状态前请先核实。</li>
+            <li><b>Minecraft 机器人库的选择</b>——本次未深入研究（Mineflayer vs. Malmo vs.
+              更新的 Fork）；如果你选择 Minecraft 路径，值得做一次有针对性的跟进。</li>
+            <li><b>方法说明</b>——研究结果来自网络索引，而非实时核实的页面。
+              经典论文和仓库的 URL 已由多个独立来源佐证（高可信度）；单一来源的主张已在上文内联标注。</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ============ SOURCES ============ -->
+      <section id="sources">
+        <div class="sec-head"><span class="sec-num">§</span><h2>参考来源</h2></div>
+        <ol class="sources">
+          <li><b>Park et al. (Stanford/Google), "Generative Agents: Interactive Simulacra of Human Behavior," 2023</b>（UIST 最佳论文）— <a href="https://arxiv.org/abs/2304.03442">arxiv.org/abs/2304.03442</a> · 代码 <a href="https://github.com/joonspk-research/generative_agents">github.com/joonspk-research/generative_agents</a></li>
+          <li><b>Park et al., "Generative Agent Simulations of 1,000 People," 2024</b> — <a href="https://arxiv.org/abs/2411.10109">arxiv.org/abs/2411.10109</a></li>
+          <li><b>Vezhnevets, Agapiou, Duéñez-Guzmán, Leibo et al. (Google DeepMind), "Generative agent-based modeling … using Concordia," 2023</b> — <a href="https://arxiv.org/abs/2312.03664">arxiv.org/abs/2312.03664</a> · 代码 <a href="https://github.com/google-deepmind/concordia">github.com/google-deepmind/concordia</a></li>
+          <li><b>Altera.AL et al., "Project Sid: Many-agent simulations toward AI civilization," 2024</b> — <a href="https://arxiv.org/abs/2411.00114">arxiv.org/abs/2411.00114</a> · 代码 <a href="https://github.com/altera-al/project-sid">github.com/altera-al/project-sid</a></li>
+          <li><b>Wang et al. (NVIDIA et al.), "Voyager: An Open-Ended Embodied Agent with Large Language Models," 2023</b> (TMLR 2024) — <a href="https://arxiv.org/abs/2305.16291">arxiv.org/abs/2305.16291</a> · <a href="https://voyager.minedojo.org">voyager.minedojo.org</a></li>
+          <li><b>Yang et al. (CAMEL-AI), "OASIS: Open Agent Social Interaction Simulations," 2024</b> — <a href="https://arxiv.org/abs/2411.11581">arxiv.org/abs/2411.11581</a></li>
+          <li><b>Tsinghua FIB, "AgentSociety," 2025</b> — <a href="https://arxiv.org/abs/2502.08691">arxiv.org/abs/2502.08691</a> · <a href="https://github.com/tsinghua-fib-lab/AgentSociety">github.com/tsinghua-fib-lab/AgentSociety</a></li>
+          <li><b>Hu et al., "SimBench: Benchmarking the Ability of LLMs to Simulate Human Behaviors," 2025</b> — <a href="https://arxiv.org/abs/2510.17516">arxiv.org/abs/2510.17516</a></li>
+          <li><b>NVIDIA ACE 公告 / CES 2025 报道</b> — <a href="https://www.techpowerup.com/330824/nvidia-redefines-game-ai-with-ace-autonomous-game-characters">techpowerup.com</a>; <b>Tom's Guide ACE 上手体验, 2025</b> — <a href="https://www.tomsguide.com/gaming/pc-gaming/i-played-with-nvidias-ai-npc-prototypes-now-they-real-and-i-fear-ill-never-finish-a-game-again">tomsguide.com</a></li>
+          <li><b>DSOGaming: "inZOI is the first game with AI-powered NPCs using NVIDIA ACE," 2025</b> — <a href="https://www.dsogaming.com/news/inzoi-is-the-first-game-with-ai-powered-npcs-using-nvidia-ace/">dsogaming.com</a></li>
+          <li><b>Inworld AI / 育碧 "Neo NPCs," GDC 2024</b> — <a href="https://insider-gaming.com/ubisoft-exploring-generative-ai-to-power-npcs-in-future-games/">insider-gaming.com</a> · <a href="https://www.club386.com/ubisoft-is-creating-ai-npcs-with-the-help-of-nvidia-and-inworld-ai/">club386.com</a></li>
+          <li><b>TechCrunch: "AI Dungeon maker Latitude unveils Voyage," Apr 2026</b> — <a href="https://techcrunch.com/2026/04/21/voyage-is-an-ai-rpg-platform-for-creating-custom-gaming-worlds-with-ai-generated-npc-interactions/">techcrunch.com</a>; <b>Wikipedia: AI Dungeon</b> — <a href="https://en.wikipedia.org/wiki/AI_Dungeon">en.wikipedia.org/wiki/AI_Dungeon</a></li>
+          <li><b>GamesIndustry.biz: "Hidden Door lands $2m pre-seed," 2022</b> — <a href="https://www.gamesindustry.biz/hidden-door-lands-usd2m-pre-seed-funding-for-ai-narrative">gamesindustry.biz</a></li>
+          <li><b>a16z-infra, AI Town (开源入门套件)</b> — <a href="https://github.com/a16z-infra/ai-town">github.com/a16z-infra/ai-town</a></li>
+          <li><b>undreamai, LLMUnity (Unity 本地 LLM 包)</b> — <a href="https://github.com/undreamai/LLMUnity">github.com/undreamai/LLMUnity</a></li>
+          <li><b>"Breaking the Cloud Barrier: Local Deployment of Conversational LLMs for Real Time NPC Interaction in Video Games" (Unreal 集成), 2023</b> — <a href="https://openreview.net/pdf?id=gNwi9SW3D3">openreview.net/pdf?id=gNwi9SW3D3</a></li>
+          <li><b>Hong et al. (DeepWisdom), "MetaGPT: Meta Programming for Multi-Agent Collaborative Frameworks," 2023</b> (ICLR 2024) — <a href="https://arxiv.org/abs/2308.00352">arxiv.org/abs/2308.00352</a></li>
+          <li><b>MIT Technology Review: "A Minecraft town of AI characters made friends, invented jobs, and spread religion," Nov 2024</b>（关于 Project Sid）— <a href="https://www.technologyreview.com/2024/11/27/1107377/a-minecraft-town-of-ai-characters-made-friends-invented-jobs-and-spread-religion/">technologyreview.com</a></li>
+        </ol>
+      </section>
+
+      <footer>
+        <p>编制于 2026 年 10 月 14 日，资料来自已发表的论文、官方仓库和可靠的新闻报道，用于游戏开发课程中关于多智能体世界游戏的作业。标注为“单一来源”的主张仅基于一个第三方说法，在评分作业中引用前应在原始来源处确认。</p>
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        var stages = {
+          memory: {
+            title: "记忆流",
+            text: "智能体感知到的一切都会被追加到一个单一的、不断增长的自然语言记忆对象列表中——包括观察、对话和它自己的行动。每条记忆都带有创建时间戳和重要性分数（1–10），该分数由 LLM 在写入记忆时自行评定。任何内容都不会被删除；记忆流就是智能体的全部生活史，后续每个阶段都从中读取。",
+            formula: "<span class=\"k\">memory</span> = {\n  text: \"Isabella 正在策划一场情人节派对\",\n  created: game-hour 214,\n  importance: 8  <span style=\"opacity:.65\">// 由 LLM 评定 1–10 分</span>\n}"
+          },
+          retrieval: {
+            title: "检索",
+            text: "当智能体必须决定要做什么时，它无法将全部历史塞进一个提示词中——因此需要检索。候选记忆会根据三个因素评分，排名靠前的 K 条会被拼接进提示词作为上下文。这就是值得照搬的公式：它简单、可调，也正是让遥远但重要的事件（几天前做出的承诺）能在恰当时刻重新浮现的原因。",
+            formula: "<span class=\"k\">score</span> = 新近度 × 重要性 × 相关性\n\n新近度    = 0.995^(距记忆的游戏小时数)\n             <span style=\"opacity:.65\">// 每游戏小时指数衰减</span>\n重要性 = 写入时的 1–10 分\n相关性  = 与当前情境的嵌入余弦相似度\n\n<span style=\"opacity:.65\">// 论文中所有权重 = 1；排名靠前的 K 条胜出</span>"
+          },
+          reflection: {
+            title: "反思",
+            text: "智能体会定期停下来思考自己的记忆。它会根据最近的 100 条记忆生成 3 个最突出的问题，检索相关证据，并将更高层次的推论——“我最近经常和 Klaus 争吵”——写回记忆流。这些反思会形成抽象程度递增的树状结构，而消融实验表明，去掉反思会导致可信度出现最大的单项下降（见下方图表）。",
+            formula: "<span class=\"k\">触发条件</span>: 自上次反思以来\n重要性之和 &gt; 150  <span style=\"opacity:.65\">// 约每游戏日 2–3 次</span>\n\n1. 选取最近的 100 条记忆\n2. LLM 提出 3 个突出问题\n3. 从记忆流中检索答案\n4. 将推论作为记忆写回"
+          },
+          planning: {
+            title: "规划与行动",
+            text: "计划以递归、自上而下的方式构建：先勾勒全天的大致安排，再分解为以小时为单位的区块，最后细化为分钟级的行动。计划并非承诺——随着新观察的到来，智能体会做出反应并重新规划，这正是一次偶遇的对话能改变一个下午安排的原因。感知让循环闭合：智能体（以语言形式）观察周围环境、进行对话并对世界采取行动，从而产生下一轮记忆。",
+            formula: "<span class=\"k\">全天计划</span>\n └─ 小时区块  <span style=\"opacity:.65\">// “上午 9–10 点：开咖啡馆”</span>\n     └─ 分钟级行动\n         <span style=\"opacity:.65\">// “走到柜台，向 Sam 打招呼”</span>\n\n<span style=\"opacity:.65\">// 随事件发展随时修订</span>"
+          }
+        };
+        var title = document.getElementById("loop-title");
+        var text = document.getElementById("loop-text");
+        var formula = document.getElementById("loop-formula");
+        var tabs = Array.prototype.slice.call(document.querySelectorAll(".loop-tabs button"));
+        function select(stage, focus) {
+          var s = stages[stage];
+          if (!s) return;
+          title.textContent = s.title;
+          text.textContent = s.text;
+          formula.innerHTML = s.formula;
+          tabs.forEach(function (b) {
+            var on = b.getAttribute("data-stage") === stage;
+            b.setAttribute("aria-selected", on ? "true" : "false");
+            if (on && focus) b.focus();
+          });
+        }
+        tabs.forEach(function (b, i) {
+          b.addEventListener("click", function () { select(b.getAttribute("data-stage"), false); });
+          b.addEventListener("keydown", function (e) {
+            var j = null;
+            if (e.key === "ArrowRight") j = (i + 1) % tabs.length;
+            if (e.key === "ArrowLeft") j = (i - 1 + tabs.length) % tabs.length;
+            if (j !== null) { e.preventDefault(); select(tabs[j].getAttribute("data-stage"), true); }
+          });
+        });
+        select("memory", false);
+      })();
+    </script>
+  </body>
+</html>
