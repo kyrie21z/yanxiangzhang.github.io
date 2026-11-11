@@ -1,0 +1,241 @@
+{
+ "recorded_at": "2026-11-11 10:25",
+ "model": "bailian/qwen3.8-flash:high",
+ "sessions": [
+  {
+   "id": "n1-overnight",
+   "date": "2026-10-13T23:10"
+  },
+  {
+   "id": "n2-arm",
+   "date": "2026-10-15T09:40"
+  },
+  {
+   "id": "n3-misc",
+   "date": "2026-10-16T13:30"
+  },
+  {
+   "id": "n4-colleague",
+   "date": "2026-10-18T15:50"
+  },
+  {
+   "id": "n5-week",
+   "date": "2026-10-20T10:10"
+  },
+  {
+   "id": "n6-cap",
+   "date": "2026-10-22T22:00"
+  }
+ ],
+ "systems": {
+  "hermes": {
+   "sessions": {
+    "n1-overnight": {
+     "ms": 5108,
+     "llm_calls": 2,
+     "tokens": 2319,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 11,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 5093,
+       "llm_calls": 2
+      }
+     }
+    },
+    "n2-arm": {
+     "ms": 4291,
+     "llm_calls": 3,
+     "tokens": 3535,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 4,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 4285,
+       "llm_calls": 3
+      }
+     }
+    },
+    "n3-misc": {
+     "ms": 10097,
+     "llm_calls": 3,
+     "tokens": 4860,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 4,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 10091,
+       "llm_calls": 3
+      }
+     }
+    },
+    "n4-colleague": {
+     "ms": 7602,
+     "llm_calls": 3,
+     "tokens": 4894,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 5,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 7595,
+       "llm_calls": 3
+      }
+     }
+    },
+    "n5-week": {
+     "ms": 7081,
+     "llm_calls": 2,
+     "tokens": 3549,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 5,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 7074,
+       "llm_calls": 2
+      }
+     }
+    },
+    "n6-cap": {
+     "ms": 7123,
+     "llm_calls": 4,
+     "tokens": 8334,
+     "embed_calls": 0,
+     "embed_tokens": 0,
+     "parts": {
+      "sqlite_fts5": {
+       "ms": 3,
+       "llm_calls": 0
+      },
+      "hermes_file": {
+       "ms": 7118,
+       "llm_calls": 4
+      }
+     }
+    }
+   },
+   "store": {
+    "rows": 30,
+    "file_chars": 1370
+   }
+  },
+  "mem0": {
+   "sessions": {
+    "n1-overnight": {
+     "ms": 6205,
+     "llm_calls": 1,
+     "tokens": 8799,
+     "embed_calls": 3,
+     "embed_tokens": 493
+    },
+    "n2-arm": {
+     "ms": 6429,
+     "llm_calls": 1,
+     "tokens": 9106,
+     "embed_calls": 16,
+     "embed_tokens": 338
+    },
+    "n3-misc": {
+     "ms": 9264,
+     "llm_calls": 1,
+     "tokens": 9619,
+     "embed_calls": 17,
+     "embed_tokens": 480
+    },
+    "n4-colleague": {
+     "ms": 7262,
+     "llm_calls": 1,
+     "tokens": 9514,
+     "embed_calls": 13,
+     "embed_tokens": 324
+    },
+    "n5-week": {
+     "ms": 7238,
+     "llm_calls": 1,
+     "tokens": 9657,
+     "embed_calls": 21,
+     "embed_tokens": 485
+    },
+    "n6-cap": {
+     "ms": 5022,
+     "llm_calls": 1,
+     "tokens": 9421,
+     "embed_calls": 3,
+     "embed_tokens": 316
+    }
+   },
+   "store": {
+    "memories": 29
+   }
+  },
+  "graphiti": {
+   "sessions": {
+    "n1-overnight": {
+     "ms": 13852,
+     "llm_calls": 7,
+     "tokens": 10245,
+     "embed_calls": 4,
+     "embed_tokens": 180
+    },
+    "n2-arm": {
+     "ms": 11841,
+     "llm_calls": 7,
+     "tokens": 12569,
+     "embed_calls": 4,
+     "embed_tokens": 184
+    },
+    "n3-misc": {
+     "ms": 19899,
+     "llm_calls": 11,
+     "tokens": 20192,
+     "embed_calls": 6,
+     "embed_tokens": 396
+    },
+    "n4-colleague": {
+     "ms": 8386,
+     "llm_calls": 6,
+     "tokens": 13566,
+     "embed_calls": 4,
+     "embed_tokens": 122
+    },
+    "n5-week": {
+     "ms": 15110,
+     "llm_calls": 9,
+     "tokens": 19024,
+     "embed_calls": 4,
+     "embed_tokens": 320
+    },
+    "n6-cap": {
+     "ms": 6841,
+     "llm_calls": 4,
+     "tokens": 10238,
+     "embed_calls": 5,
+     "embed_tokens": 113
+    }
+   },
+   "store": {
+    "nodes": 25,
+    "edges": 27
+   }
+  }
+ }
+}

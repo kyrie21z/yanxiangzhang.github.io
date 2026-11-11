@@ -22,7 +22,7 @@
 
   <section class="screen" id="s2">
     <header class="head">
-      <h1>怎么存 · 同样五句话，四种存法</h1>
+      <h1>怎么存 · 同样五句话，三种存法</h1>
       <div class="stamp" id="s2-stamp"></div>
     </header>
     <div class="mem-cards" id="s2-cards"></div>
@@ -53,8 +53,17 @@
     </header>
     <div class="write-body">
       <aside class="sessions" id="s4-sessions"></aside>
-      <div class="write-cols" id="s4-cols"></div>
+      <div class="wright askbody" id="s4-cols"></div>
     </div>
+  </section>
+
+  <section class="screen" id="swc">
+    <header class="head">
+      <h1>写入花多少 · 六段对话</h1>
+      <div class="stamp" id="swc-stamp"></div>
+    </header>
+    <div class="wc" id="swc-body"><div class="loading">读取中…</div></div>
+    <div class="s8-note" id="swc-note"></div>
   </section>
 
   <section class="screen" id="s5">
@@ -68,18 +77,16 @@
     <div class="cols" id="s5-cols"></div>
   </section>
 
-  <section class="screen" id="s6">
+  <section class="screen" id="src">
     <header class="head">
-      <h1>花多少 · 写入和读取</h1>
-      <div class="stamp">test-20261108 · 两个 track × 两次建库 · 取最小–最大 · 条长为对数刻度</div>
+      <h1>读取花多少 · 刚才那个问题</h1>
+      <div class="stamp" id="src-q"></div>
     </header>
-    <div class="cost" id="s6-bars"></div>
-    <div class="read-cost" id="s6-read"></div>
-    <div class="s8-line">存得越细，写入越慢、调用越多</div>
-    <div class="s8-note" id="s6-note"></div>
+    <div class="rcx" id="src-body"></div>
+    <div class="s8-note">一次运行的结果：作答用时受接口速度影响很大，主要看调用次数和 tokens。</div>
   </section>
 
-  <div id="pager"><span id="pager-num">1</span><span class="pager-sep">/</span><span class="pager-all">6</span></div>
+  <div id="pager"><span id="pager-num">1</span><span class="pager-sep">/</span><span class="pager-all">7</span></div>
 </div>
 <script>window.MEMORY_REPLAY = { base: "data/" };</script>
 <script src="live.js"></script>

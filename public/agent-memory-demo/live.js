@@ -9,11 +9,14 @@ const MOCK_ON = QS.get('mock') === '1';
 const AUTO = QS.get('auto') === '1';
 
 const BACKENDS = [
-  { key: 'control',      name: '无记忆',        role: '不存 · 不取' },
-  { key: 'sqlite_fts5',  name: 'SQLite 关键词', role: '整段原文 · 全文检索' },
-  { key: 'hermes_file',  name: 'Hermes 文件',   role: '两份文件 · 模型维护' },
-  { key: 'mem0',         name: 'Mem0',          role: '抽取成条 · 向量检索' },
-  { key: 'graphiti',     name: 'Graphiti',      role: '实体关系 · 时间图' },
+  { key: 'control',  name: '无记忆',   role: '不存 · 不取',
+    store: '什么也不存', find: '什么也不找' },
+  { key: 'hermes',   name: 'Hermes',   role: '文件常驻 · 原话按需搜',
+    store: '两份小文件 + 全部原话进 SQLite', find: '文件整份加载；Agent 自己调工具搜原话' },
+  { key: 'mem0',     name: 'Mem0',     role: '抽成事实 · 按意思打分',
+    store: '模型把对话抽成一条条事实', find: '按意思（向量）给每条打分，取前 5' },
+  { key: 'graphiti', name: 'Graphiti', role: '实体关系 · 带时间的图',
+    store: '实体、关系和它们的生效时间', find: '关键词 + 向量两路找关系边，再融合' },
 ];
 const B4 = BACKENDS.filter(b => b.key !== 'control');
 const byKey = k => BACKENDS.find(b => b.key === k);
@@ -84,7 +87,7 @@ const S = {
   screen: 1,
   state: null,
   meta: null,
-  s2: { tab: QS.get('tab') || 'sqlite_fts5', cache: {}, showAll: false },
+  s2: { tab: QS.get('tab') || 'hermes', cache: {}, showAll: false },
   ask: {},
   s4: null,
   snaps: null,
@@ -177,6 +180,38 @@ function probeFor(track, prompt) {
   return (t?.probes || []).find(p => p.prompt === prompt) || null;
 }
 
+/* ---------------- click-to-open details ---------------- */
+// Truncated items register their full content here; a click on any element
+// carrying data-pop opens it over the page. Esc, ✕, a click outside, or
+// turning the page closes it.
+const POPS = new Map();
+let popSeq = 0;
+function popId(head, body) {
+  const id = String(++popSeq);
+  POPS.set(id, { head, body });
+  if (POPS.size > 400) POPS.delete(POPS.keys().next().value);
+  return id;
+}
+function openPop(head, body) {
+  let el = document.getElementById('pop');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pop';
+    $('#stage').appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el || e.target.closest('.pop-x')) closePop(); });
+  }
+  el.innerHTML = `<div class="pop-card"><div class="pop-h"><div>${head}</div><span class="pop-x">✕</span></div><div class="pop-b">${body}</div></div>`;
+  el.classList.add('on');
+  hideTip();
+}
+function closePop() { const el = document.getElementById('pop'); if (el && el.classList.contains('on')) { el.classList.remove('on'); return true; } return false; }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-pop]');
+  if (!t || t.closest('#pop')) return;
+  const p = POPS.get(t.dataset.pop);
+  if (p) openPop(p.head, p.body);
+});
+
 /* ---------------- layout / router ---------------- */
 
 const stage = $('#stage');
@@ -188,28 +223,35 @@ function fit() {
 }
 addEventListener('resize', fit);
 
+// Page order. Screens keep their own keys (section id "s" + key); the pager,
+// the URL hash and the number keys use the position in this list.
+const ORDER = [1, 2, 3, 4, 'wc', 5, 'rc'];
 const hashNum = () => {
   const n = parseInt(String(location.hash).replace('#', ''), 10);
-  return n >= 1 && n <= 6 ? n : 1;
+  return n >= 1 && n <= ORDER.length ? n : 1;
 };
 
-function show(n) {
-  S.screen = n;
-  $$('.screen').forEach(el => el.classList.toggle('active', el.id === 's' + n));
-  $('#pager-num').textContent = n;
-  if (location.hash !== '#' + n) history.replaceState(null, '', '#' + n);
-  enter(n);
+function show(pos) {
+  closePop();
+  const k = ORDER[pos - 1];
+  S.pos = pos;
+  S.screen = k;
+  $$('.screen').forEach(el => el.classList.toggle('active', el.id === 's' + k));
+  $('#pager-num').textContent = pos;
+  if (location.hash !== '#' + pos) history.replaceState(null, '', '#' + pos);
+  enter(k);
 }
 
-function enter(n) {
-  if (n === 2) enter2();
-  else if (n === 3) enterAsk(3);
-  else if (n === 4) enter4();
-  else if (n === 5) enterAsk(5);
-  else if (n === 6) enterCost();
+function enter(k) {
+  if (k === 2) enter2();
+  else if (k === 3) enterAsk(3);
+  else if (k === 4) enter4();
+  else if (k === 'wc') enterWriteCost();
+  else if (k === 5) enterAsk(5);
+  else if (k === 'rc') enterReadCost();
 }
 
-addEventListener('hashchange', () => { const n = hashNum(); if (n !== S.screen) show(n); });
+addEventListener('hashchange', () => { const n = hashNum(); if (n !== S.pos) show(n); });
 
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
@@ -217,6 +259,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') e.target.blur();
     return;
   }
+  if (closePop() && (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
   if (e.key === 'Escape') {
     $$('.cols.zoomed').forEach(c => c.classList.remove('zoomed'));
     $$('.col.zoom').forEach(c => c.classList.remove('zoom'));
@@ -224,34 +267,64 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'ArrowRight' || e.key === ' ') {
     e.preventDefault();
-    if (S.screen < 6) show(S.screen + 1);
+    if (S.pos < ORDER.length) show(S.pos + 1);
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
-    if (S.screen > 1) show(S.screen - 1);
+    if (S.pos > 1) show(S.pos - 1);
+  } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (S.screen === 3 || S.screen === 5) && S.ask[S.screen]) {
+    e.preventDefault();
+    cycleCol(S.screen, e.key === 'ArrowDown' ? 1 : -1);
+  } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && S.screen === 4 && S.s4) {
+    e.preventDefault();
+    cycleW(e.key === 'ArrowDown' ? 1 : -1);
   } else if (e.key === 'ArrowDown' && S.screen === 2) {
     e.preventDefault();
     cycleTab(1);
   } else if (e.key === 'ArrowUp' && S.screen === 2) {
     e.preventDefault();
     cycleTab(-1);
-  } else if (/^[1-6]$/.test(e.key)) {
+  } else if (/^[1-9]$/.test(e.key) && Number(e.key) <= ORDER.length) {
     show(Number(e.key));
   }
 });
 
 /* ---------------- 1 · 首屏 ---------------- */
 
+const GLYPH = {
+  control: `<svg viewBox="0 0 160 90"><circle cx="80" cy="45" r="30" fill="none" stroke="#6d7280" stroke-width="4" stroke-dasharray="8 8"/></svg>`,
+  hermes: `<svg viewBox="0 0 160 90">
+    <rect x="12" y="14" width="34" height="44" rx="4" fill="none" stroke="#f4f1e9" stroke-width="3.5"/>
+    <rect x="52" y="14" width="34" height="44" rx="4" fill="none" stroke="#f4f1e9" stroke-width="3.5"/>
+    <path d="M19 28h20M19 37h20M19 46h12M59 28h20M59 37h14" stroke="#f4f1e9" stroke-width="3"/>
+    <ellipse cx="128" cy="22" rx="20" ry="7" fill="none" stroke="#ffb68a" stroke-width="3.5"/>
+    <path d="M108 22v42c0 4 9 7 20 7s20-3 20-7V22" fill="none" stroke="#ffb68a" stroke-width="3.5"/>
+    <path d="M108 43c0 4 9 7 20 7s20-3 20-7" fill="none" stroke="#ffb68a" stroke-width="3"/>
+    <text x="49" y="82" fill="#b9bec8" font-size="13" text-anchor="middle">常驻</text>
+    <text x="128" y="88" fill="#ffb68a" font-size="13" text-anchor="middle">按需搜</text></svg>`,
+  mem0: `<svg viewBox="0 0 160 90">
+    <path d="M10 22h52M10 40h44M10 58h52" stroke="#f4f1e9" stroke-width="5" stroke-linecap="round"/>
+    <path d="M70 40h18m-7-7 7 7-7 7" fill="none" stroke="#b9bec8" stroke-width="3"/>
+    ${[[110,20],[124,34],[104,48],[136,56],[118,66],[142,28],[130,44]].map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${i < 3 ? 6 : 4.5}" fill="${i < 3 ? '#ffb68a' : '#f4f1e9'}"/>`).join('')}
+  </svg>`,
+  graphiti: `<svg viewBox="0 0 160 90">
+    <path d="M30 24L78 46L128 20M78 46L60 76M78 46L124 70M30 24L60 76" stroke="#b9bec8" stroke-width="3" fill="none"/>
+    <path d="M78 46L128 20" stroke="#ffb68a" stroke-width="4.5"/>
+    ${[[30,24,8],[78,46,11],[128,20,8],[60,76,7],[124,70,7]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#f4f1e9"/>`).join('')}
+  </svg>`,
+};
+
 function buildS1() {
   $('#s1-cols').innerHTML = BACKENDS.map(b => `
-    <div class="s1-col">
+    <div class="s1-col ${b.key}">
+      <div class="glyph">${GLYPH[b.key]}</div>
       <div class="name">${escHtml(b.name)}</div>
-      <div class="role">${escHtml(b.role)}</div>
+      <div class="how"><span>存</span>${escHtml(b.store)}</div>
+      <div class="how"><span>找</span>${escHtml(b.find)}</div>
     </div>`).join('');
 }
 
 /* ---------------- 2 · 存储 ---------------- */
 
-const sqShowAllKey = 's2.showAll';
 
 function enter2() {
   window.__liveReady = false;
@@ -304,311 +377,428 @@ function cycleTab(d) {
 async function renderPanel() {
   const b = S.s2.tab;
   const panel = $('#s2-panel');
-  const tip0 = document.getElementById('s2-tip');
-  if (tip0) tip0.style.display = 'none';
+  hideTip();
   panel.innerHTML = '<div class="loading">读取中…</div>';
   try {
     const data = await getInspect('life-demo', b);
     S.s2.cache[`life-demo|${b}`] = data;
     if (S.s2.tab !== b) return;
-    if (b === 'sqlite_fts5') panel.innerHTML = renderSQLite(data);
-    else if (b === 'hermes_file') panel.innerHTML = renderHermes(data);
+    if (b === 'hermes') panel.innerHTML = renderHermes(data);
     else if (b === 'mem0') panel.innerHTML = renderMem0(data);
-    else panel.innerHTML = renderGraphiti(data);
-    bindPanel(b);
+    else {
+      panel.innerHTML = renderGraphiti(data);
+      const host = $('#s2-graph', panel);
+      const sessions = S.state?.tracks['life-demo']?.sessions || [];
+      const draw = () => drawKG(host, data, { W: 1776, H: 560, episodes: true, sessions, animate: true });
+      draw();
+      $('[data-replay]', panel).addEventListener('click', draw);
+    }
   } catch (err) {
     panel.innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
   }
 }
 
-function renderSQLite(d) {
-  const rows = (d.rows || []).filter(r => S.s2.showAll || r.role === 'user');
-  return `
-    <div class="panel-head">
-      <div class="ph-title">表 ${escHtml(d.table || 'messages')} · ${rows.length} 行</div>
-      <button class="ph-toggle" data-toggle="all">${S.s2.showAll ? '只看 user' : '显示全部'}</button>
-    </div>
-    <div class="sq">${rows.map(r => `
-      <div class="sq-row">
-        <div class="sq-id">${r.id}</div>
-        <div class="sq-txt ${r.role}">${r.role !== 'user' ? `<span class="sq-tag">助理</span>` : ''}${rich(r.content)}</div>
-      </div>`).join('')}
-    </div>`;
+function sessionDates() {
+  const m = {};
+  for (const t of Object.values(S.state?.tracks || {})) for (const s of t.sessions || []) m[s.id] = s.date;
+  return m;
 }
 
 function renderHermes(d) {
   const files = d.files || {};
+  const rows = d.rows || [];
+  const dates = sessionDates();
+  const bySess = [];
+  for (const r of rows) {
+    let g = bySess.find(x => x.sid === r.session_id);
+    if (!g) bySess.push(g = { sid: r.session_id, rows: [] });
+    g.rows.push(r);
+  }
   return `
-    <div class="panel-head"><div class="ph-title">磁盘上的两份文件（模型自己维护）</div></div>
-    <div class="files">${Object.entries(files).map(([name, f]) => {
-      const pct = Math.min(100, Math.round((f.used / f.limit) * 100));
-      return `<div class="file-card">
-        <div class="file-name">${escHtml(name)}</div>
-        <div class="file-meta">已用 ${f.used} / 上限 ${f.limit} 字符 · ${(f.entries || []).length} 条</div>
-        <div class="file-bar"><i style="width:${pct}%"></i></div>
-        <div class="file-entries">${(f.entries || []).map(e => `<div class="file-entry">${rich(e)}</div>`).join('')}</div>
-      </div>`;
-    }).join('')}</div>`;
+    <div class="hm">
+      <div class="hm-col">
+        <div class="hm-h"><span class="pill dark">常驻</span>两份小文件 · 会话结束时模型自己改 · 每次开新会话整份放进提示</div>
+        <div class="files">${Object.entries(files).map(([name, f]) => {
+          const pct = Math.min(100, Math.round((f.used / f.limit) * 100));
+          return `<div class="file-card">
+            <div class="file-name">${escHtml(name)}</div>
+            <div class="file-meta">${f.used} / ${f.limit} 字符 · ${(f.entries || []).length} 条</div>
+            <div class="file-bar"><i style="width:${pct}%"></i></div>
+            <div class="file-entries">${(f.entries || []).map(e => `<div class="file-entry">${rich(e)}</div>`).join('') || '<div class="file-entry dim">（空）</div>'}</div>
+          </div>`;
+        }).join('')}</div>
+      </div>
+      <div class="hm-col db">
+        <div class="hm-h"><span class="pill accent">按需</span>state.db · 每句原话一行，不调模型 · Agent 需要时用 session_search 查</div>
+        <div class="db-table">
+          <div class="db-row db-th"><span>id</span><span>session</span><span>content</span></div>
+          ${bySess.map(g => g.rows.map((r, i) => `
+            <div class="db-row${i === 0 ? ' first' : ''}">
+              <span class="db-id">${r.id}</span>
+              <span class="db-sid">${i === 0 ? escHtml(r.session_id) : ''}</span>
+              <span class="db-txt ${r.role}">${r.role !== 'user' ? '<i>助手</i>' : ''}${rich(r.content)}</span>
+            </div>`).join('')).join('')}
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderMem0(d) {
-  const list = (d.memories || []).slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  const sessions = S.state?.tracks['life-demo']?.sessions || [];
+  const mems = d.memories || [];
+  const rows = sessions.map(s => ({ s, ms: mems.filter(m => (m.metadata || {}).session === s.id) }));
+  const other = mems.filter(m => !sessions.some(s => s.id === (m.metadata || {}).session));
   return `
-    <div class="panel-head"><div class="ph-title">${list.length} 条抽取后的记忆（英文原样）</div></div>
-    <div class="mem-list">${list.map((m, i) => `
-      <div class="mem-item">
-        <div class="mem-i">${i + 1}</div>
-        <div class="mem-t">${rich(m.memory)}</div>
-      </div>`).join('')}</div>`;
+    <div class="panel-head"><div class="ph-title">原话 → 模型抽成事实（英文原样）→ 每条存成一个 1024 维向量 · 共 ${mems.length} 条</div></div>
+    <div class="m0">
+      ${rows.concat(other.length ? [{ s: null, ms: other }] : []).map(({ s, ms }) => `
+        <div class="m0-row">
+          <div class="m0-src">${s ? `<div class="d">${escHtml(fmtCardDate(s.date))}</div><div class="t">${rich(s.messages[0].content)}</div>` : '<div class="t dim">其他</div>'}</div>
+          <div class="m0-arrow"><span>抽取</span>→</div>
+          <div class="m0-out">${ms.map(m => `<div class="m0-mem"><span class="vec">向量</span>${rich(m.memory)}</div>`).join('') || '<div class="m0-mem dim">没有抽出事实</div>'}</div>
+        </div>`).join('')}
+    </div>`;
 }
 
 function renderGraphiti(d) {
   const edges = d.edges || [];
   return `
-    <div class="panel-head"><div class="ph-title">${(d.nodes || []).length} 个实体 · ${edges.length} 条关系</div></div>
-    <div class="graph-wrap">
-      <div class="graph-svg" id="s2-graph"></div>
-      <div class="edge-list">${edges.map(e => `
-        <div class="edge-row">
-          <div class="edge-name">${escHtml(e.name || '')}</div>
-          <div class="edge-fact">${rich(e.fact || '')}</div>
-          <div class="edge-valid">${escHtml(String(e.valid_at || '').slice(0, 10))}</div>
-        </div>`).join('')}</div>
-    </div>`;
+    <div class="panel-head">
+      <div class="ph-title">${(d.nodes || []).length} 个实体 · ${edges.length} 条关系 · ${(d.episode_nodes || []).length} 段原话</div>
+      <div class="kg-legend">
+        <span><i class="lg-ep"></i>原话（一段会话）</span>
+        <span><i class="lg-ment"></i>提到</span>
+        <span><i class="lg-ent"></i>实体</span>
+        <span><i class="lg-edge"></i>关系（悬停看原句和生效时间）</span>
+      </div>
+      <button class="ph-toggle" data-replay>▶ 重放建图过程</button>
+    </div>
+    <div class="graph-svg" id="s2-graph"></div>`;
 }
 
-function bindPanel(b) {
-  const panel = $('#s2-panel');
-  const toggle = $('[data-toggle="all"]', panel);
-  if (toggle) toggle.addEventListener('click', () => {
-    S.s2.showAll = !S.s2.showAll;
-    renderPanel();
-  });
-  if (b === 'graphiti') drawGraph(panel);
-}
+/* ---- knowledge graph: model, layout, svg ---- */
 
-/* ---- graphiti force layout + svg ---- */
+const KG_COLORS = ['#c2410c', '#0f766e', '#7c3aed', '#b45309', '#be185d', '#1d4ed8', '#4d7c0f', '#0e7490', '#9f1239', '#57534e'];
+const estW = (s, size, f = 0.58) => Array.from(String(s)).reduce((a, ch) => a + (/[⺀-鿿＀-￯]/.test(ch) ? size : size * f), 0);
+const humanRel = s => String(s || '').toLowerCase().replace(/_/g, ' ');
 
-function drawGraph(panel) {
-  const data = S.s2.cache[`life-demo|graphiti`];
-  if (!data) return;
-  const host = $('#s2-graph', panel);
-  if (!host) return;
-  const W = 1780, H = 300;
-  const nodes = data.nodes || [];
-  const edges = data.edges || [];
-  const idx = new Map(nodes.map((n, i) => [n.uuid, i]));
-  const pos = nodes.map((_, i) => ({
-    x: W / 2 + Math.cos((i / nodes.length) * Math.PI * 2) * W * 0.33,
-    y: H / 2 + Math.sin((i / nodes.length) * Math.PI * 2) * H * 0.35,
-  }));
-  const k = Math.sqrt((W * H) / Math.max(1, nodes.length)) * 0.62;
-  for (let it = 0; it < 260; it++) {
-    const dx = pos.map(() => 0), dy = pos.map(() => 0);
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        let ux = pos[i].x - pos[j].x, uy = pos[i].y - pos[j].y;
-        const d = Math.hypot(ux, uy) || 1;
-        const f = (k * k) / d;
-        ux /= d; uy /= d;
-        dx[i] += ux * f; dy[i] += uy * f;
-        dx[j] -= ux * f; dy[j] -= uy * f;
-      }
-    }
-    for (const e of edges) {
-      const i = idx.get(e.source), j = idx.get(e.target);
-      if (i == null || j == null) continue;
-      let ux = pos[i].x - pos[j].x, uy = pos[i].y - pos[j].y;
-      const d = Math.hypot(ux, uy) || 1;
-      const f = (d * d) / k;
-      ux /= d; uy /= d;
-      dx[i] -= ux * f; dy[i] -= uy * f;
-      dx[j] += ux * f; dy[j] += uy * f;
-    }
-    const temp = 46 * (1 - it / 260) + 2;
-    for (let i = 0; i < nodes.length; i++) {
-      const d = Math.hypot(dx[i], dy[i]) || 1;
-      pos[i].x += (dx[i] / d) * Math.min(d, temp);
-      pos[i].y += (dy[i] / d) * Math.min(d, temp);
-      pos[i].x = Math.max(110, Math.min(W - 110, pos[i].x));
-      pos[i].y = Math.max(40, Math.min(H - 50, pos[i].y));
-    }
+function kgModel(data, opt = {}) {
+  const nodes = (data.nodes || []).map(n => ({ id: n.uuid, name: n.name || '?', summary: n.summary || '', deg: 0 }));
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+  const edges = (data.edges || []).filter(e => idx.has(e.source) && idx.has(e.target))
+    .map(e => ({ ...e, s: idx.get(e.source), t: idx.get(e.target) }));
+  for (const e of edges) { nodes[e.s].deg++; if (e.t !== e.s) nodes[e.t].deg++; }
+  // connected components -> colours (largest first)
+  const par = nodes.map((_, i) => i);
+  const find = i => (par[i] === i ? i : (par[i] = find(par[i])));
+  for (const e of edges) par[find(e.s)] = find(e.t);
+  const groups = new Map();
+  nodes.forEach((n, i) => { const r = find(i); groups.set(r, (groups.get(r) || 0) + 1); });
+  const order = [...groups.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(x => x[0]);
+  nodes.forEach((n, i) => { n.color = KG_COLORS[order.indexOf(find(i)) % KG_COLORS.length]; });
+  let eps = [], ments = [];
+  if (opt.episodes) {
+    eps = (data.episode_nodes || []).slice().sort((a, b) => String(a.valid_at).localeCompare(String(b.valid_at)));
+    const eIdx = new Map(eps.map((e, i) => [e.uuid, i]));
+    ments = (data.mentions || []).filter(m => eIdx.has(m.source) && idx.has(m.target))
+      .map(m => ({ ep: eIdx.get(m.source), n: idx.get(m.target) }));
   }
-  for (let it = 0; it < 90; it++) {
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        let dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
-        const d = Math.hypot(dx, dy) || 1;
-        if (d < 86) {
-          const push = (86 - d) / 2;
-          dx /= d; dy /= d;
-          pos[i].x -= dx * push; pos[i].y -= dy * push;
-          pos[j].x += dx * push; pos[j].y += dy * push;
+  // when each element first appears (episode order), for the build animation
+  const epOrder = new Map(eps.map((e, i) => [e.uuid, i]));
+  for (const e of edges) {
+    const firsts = (e.episodes || []).map(u => epOrder.get(u)).filter(x => x != null);
+    e.born = firsts.length ? Math.min(...firsts) : 0;
+  }
+  nodes.forEach((n, i) => {
+    const ms = ments.filter(m => m.n === i).map(m => m.ep);
+    const es = edges.filter(e => e.s === i || e.t === i).map(e => e.born);
+    n.born = ms.length ? Math.min(...ms) : (es.length ? Math.min(...es) : 0);
+  });
+  return { nodes, edges, eps, ments };
+}
+
+function hashSeed(s) {
+  let h = 2166136261;
+  for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+function kgLayout(m, W, H, opt = {}) {
+  const N = m.nodes.length;
+  const x0 = opt.episodes && m.eps.length ? 300 : 30;
+  const epY = i => 50 + (i + 0.5) * ((H - 100) / Math.max(1, m.eps.length));
+  const size = m.nodes.map(n => ({ w: estW(n.name, opt.font || 26) + 34, h: 2 * (12 + 3 * Math.min(n.deg, 5)) + 40 }));
+  const pos = m.nodes.map((n, i) => {
+    const ms = m.ments.filter(x => x.n === i);
+    const y = ms.length ? ms.reduce((a, x) => a + epY(x.ep), 0) / ms.length : H * (0.2 + 0.6 * hashSeed(n.name + 'y'));
+    return { x: x0 + 80 + (W - x0 - 160) * (0.15 + 0.7 * hashSeed(n.name)), y: y + (hashSeed(n.name + 'j') - 0.5) * 60 };
+  });
+  const area = (W - x0) * H;
+  const k = Math.sqrt(area / Math.max(1, N)) * 0.55;
+  const L = Math.min(260, Math.max(150, k * 0.9));
+  for (let it = 0; it < 700; it++) {
+    const cool = 1 - it / 700;
+    const fx = pos.map(() => 0), fy = pos.map(() => 0);
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+      const d2 = dx * dx + dy * dy || 1, d = Math.sqrt(d2);
+      const f = (k * k) / d2 * 1.4;
+      fx[i] += dx / d * f; fy[i] += dy / d * f; fx[j] -= dx / d * f; fy[j] -= dy / d * f;
+    }
+    for (const e of m.edges) {
+      if (e.s === e.t) continue;
+      const a = pos[e.s], b = pos[e.t];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      const f = (d - L) * 0.06;
+      fx[e.s] += dx / d * f; fy[e.s] += dy / d * f; fx[e.t] -= dx / d * f; fy[e.t] -= dy / d * f;
+    }
+    for (const mm of m.ments) {  // pull entities toward the row of the episode that mentions them
+      fy[mm.n] += (epY(mm.ep) - pos[mm.n].y) * 0.012;
+      fx[mm.n] += (x0 + 260 - pos[mm.n].x) * 0.002;
+    }
+    for (let i = 0; i < N; i++) {
+      fx[i] += ((x0 + W) / 2 - pos[i].x) * 0.004;
+      fy[i] += (H / 2 - pos[i].y) * 0.006;
+      const step = 30 * cool + 1;
+      const d = Math.hypot(fx[i], fy[i]) || 1;
+      pos[i].x += fx[i] / d * Math.min(d, step);
+      pos[i].y += fy[i] / d * Math.min(d, step);
+    }
+    // label-aware collision: boxes around node + name must not overlap
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const ox = (size[i].w + size[j].w) / 2 - Math.abs(pos[i].x - pos[j].x);
+      const oy = (size[i].h + size[j].h) / 2 - Math.abs(pos[i].y - pos[j].y);
+      if (ox > 0 && oy > 0) {
+        if (ox / size[i].w < oy / size[i].h) {
+          const s = pos[i].x < pos[j].x ? -1 : 1;
+          pos[i].x += s * ox / 2; pos[j].x -= s * ox / 2;
+        } else {
+          const s = pos[i].y < pos[j].y ? -1 : 1;
+          pos[i].y += s * oy / 2; pos[j].y -= s * oy / 2;
         }
       }
     }
-    for (let i = 0; i < nodes.length; i++) {
-      pos[i].x = Math.max(110, Math.min(W - 110, pos[i].x));
-      pos[i].y = Math.max(44, Math.min(H - 52, pos[i].y));
+    for (let i = 0; i < N; i++) {
+      pos[i].x = Math.max(x0 + size[i].w / 2 + 10, Math.min(W - size[i].w / 2 - 10, pos[i].x));
+      pos[i].y = Math.max(30, Math.min(H - 54, pos[i].y));
     }
   }
-  const svg = [];
-  svg.push(`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">`);
-  const estW = (s, size, f = 0.58) => Array.from(String(s)).reduce((a, ch) => a + (/[\u2e80-\u9fff\uff00-\uffef]/.test(ch) ? size : size * f), 0);
-  const edgeBoxes = [];
-  for (const e of edges) {
-    const i = idx.get(e.source), j = idx.get(e.target);
-    if (i == null || j == null) continue;
-    const x1 = pos[i].x, y1 = pos[i].y, x2 = pos[j].x, y2 = pos[j].y;
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    let mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    if (len < 300) {
-      const ux = (x2 - x1) / (len || 1), uy = (y2 - y1) / (len || 1);
-      const side = my > H * 0.45 ? -1 : 1;
-      mx += -uy * 40 * side;
-      my += ux * 40 * side;
+  // stretch to use the whole canvas (the force layout tends to bunch in the middle)
+  if (N > 1) {
+    const L0 = Math.min(...pos.map((p, i) => p.x - size[i].w / 2)), R0 = Math.max(...pos.map((p, i) => p.x + size[i].w / 2));
+    const T0 = Math.min(...pos.map(p => p.y)), B0 = Math.max(...pos.map(p => p.y));
+    const left = x0 + 30, right = W - 20, top = 40, bot = H - 60;
+    for (let i = 0; i < N; i++) {
+      const fx = R0 > L0 ? (pos[i].x - size[i].w / 2 - L0) / (R0 - L0 - size[i].w) || 0 : 0.5;
+      pos[i].x = left + size[i].w / 2 + Math.max(0, Math.min(1, fx)) * (right - left - size[i].w);
+      pos[i].y = B0 > T0 ? top + (pos[i].y - T0) / (B0 - T0) * (bot - top) : H / 2;
     }
-    svg.push(`<g class="gedge" data-i="${i}" data-j="${j}">`);
-    svg.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#cdc5b3" stroke-width="2.5"/>`);
-    const w = estW(e.name || '', 22, 0.66);
-    const lx = Math.max(w / 2 + 6, Math.min(W - w / 2 - 6, mx));
-    const ly = Math.max(24, Math.min(H - 6, my - 5));
-    svg.push(`<rect x="${lx - w / 2 - 5}" y="${ly - 20}" width="${w + 10}" height="26" rx="4" fill="#fffdf8" opacity="0.9"/>`);
-    svg.push(`<text x="${lx}" y="${ly}" text-anchor="middle" font-size="22" fill="#8a8475">${escHtml(e.name || '')}</text>`);
-    svg.push('</g>');
-    edgeBoxes.push([lx - w / 2 - 5, ly - 20, lx + w / 2 + 5, ly + 6]);
   }
-  const placed = edgeBoxes.slice();
-  const overlaps = box => placed.some(b => !(box[2] + 8 < b[0] || box[0] > b[2] + 8 || box[3] + 5 < b[1] || box[1] > b[3] + 5));
-  const hitsNode = box => pos.some(p => p.x > box[0] - 12 && p.x < box[2] + 12 && p.y > box[1] - 10 && p.y < box[3] + 10);
-  const order = nodes.map((n, i) => i).sort((a, b) => {
-    const deg = i => edges.reduce((a, e) => a + ((idx.get(e.source) === i || idx.get(e.target) === i) ? 1 : 0), 0);
-    return deg(b) - deg(a);
-  });
-  const labels = [];
-  for (const i of order) {
-    const n = nodes[i];
-    const x = pos[i].x, y = pos[i].y;
-    let dx = x - W / 2, dy = y - H / 2;
-    const d = Math.hypot(dx, dy) || 1;
-    dx /= d; dy /= d;
-    const w = estW(n.name || '', 27);
-    const cands = [
-      { lx: x + dx * 24, ly: y + dy * 18 + 9, anchor: dx > 0.25 ? 'start' : dx < -0.25 ? 'end' : 'middle' },
-      { lx: x + 16, ly: y + 9, anchor: 'start' },
-      { lx: x - 16, ly: y + 9, anchor: 'end' },
-      { lx: x, ly: y + 38, anchor: 'middle' },
-      { lx: x, ly: y - 20, anchor: 'middle' },
-      { lx: x, ly: y + 68, anchor: 'middle' },
-      { lx: x, ly: y - 48, anchor: 'middle' },
-    ];
-    let pick = cands[0], box = null;
-    for (const c of cands) {
-      let bx0 = c.anchor === 'start' ? c.lx : c.anchor === 'end' ? c.lx - w : c.lx - w / 2;
-      const b = [bx0, c.ly - 24, bx0 + w, c.ly + 6];
-      if (b[0] < 4 || b[2] > W - 4 || b[1] < 2 || b[3] > H - 2) continue;
-      if (!overlaps(b) && !hitsNode(b)) { pick = c; box = b; break; }
-    }
-    if (!box) {
-      const offs = [[0, 68], [0, 44], [-90, 44], [90, 44], [-96, 0], [96, 0], [0, -52], [-90, -40], [90, -40]];
-      let c = null;
-      for (const [ox, oy] of offs) {
-        const cand = { lx: x + ox, ly: y + oy + 6, anchor: 'middle' };
-        const b = [cand.lx - w / 2, cand.ly - 24, cand.lx + w / 2, cand.ly + 6];
-        if (b[0] < 4 || b[2] > W - 4 || b[1] < 2 || b[3] > H - 2) continue;
-        if (!overlaps(b) && !hitsNode(b)) { c = cand; box = b; break; }
-      }
-      if (!c) {
-        c = pick;
-        let bx0 = c.anchor === 'start' ? c.lx : c.anchor === 'end' ? c.lx - w : c.lx - w / 2;
-        bx0 = Math.max(4, Math.min(W - 4 - w, bx0));
-        box = [bx0, c.ly - 24, bx0 + w, c.ly + 6];
-        c = { ...c, lx: c.anchor === 'start' ? bx0 : c.anchor === 'end' ? bx0 + w : bx0 + w / 2 };
-      }
-      pick = c;
-    }
-    placed.push(box);
-    labels.push({ i, ...pick });
-  }
-  for (const i of nodes.map((_, i) => i)) {
-    svg.push(`<circle cx="${pos[i].x}" cy="${pos[i].y}" r="9" fill="#17191e"/>`);
-  }
-  for (const L of labels) {
-    const n = nodes[L.i];
-    svg.push(`<text x="${L.lx}" y="${L.ly}" text-anchor="${L.anchor}" font-size="27" font-weight="600" fill="#17191e" style="paint-order:stroke;stroke:#fffdf8;stroke-width:9px;stroke-linejoin:round">${escHtml(n.name)}</text>`);
-  }
-  svg.push('</svg>');
-  host.innerHTML = svg.join('');
-
-  let tip = document.getElementById('s2-tip');
-  if (!tip) {
-    tip = document.createElement('div');
-    tip.id = 's2-tip';
-    document.body.appendChild(tip);
-  }
-  tip.style.display = 'none';
-  $$('.gedge', host).forEach(g => {
-    g.style.cursor = 'pointer';
-    g.addEventListener('mouseenter', ev => {
-      const i = Number(g.dataset.i), j = Number(g.dataset.j);
-      const edge = edges.find(x => idx.get(x.source) === i && idx.get(x.target) === j);
-      if (!edge) return;
-      tip.innerHTML = `${escHtml(edge.fact || '')}<span class="tv">生效 ${escHtml(String(edge.valid_at || '').slice(0, 10))}${edge.invalid_at ? ' · 失效 ' + escHtml(String(edge.invalid_at).slice(0, 10)) : ''}</span>`;
-      tip.style.display = 'block';
-      moveTip(ev);
-    });
-    g.addEventListener('mousemove', moveTip);
-    g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-  });
-  function moveTip(ev) {
-    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 20, ev.clientX + 16) + 'px';
-    tip.style.top = (ev.clientY + 16) + 'px';
-  }
+  return { pos, epY, x0, size };
 }
 
-/* ---------------- 3 / 5 · 提问 ---------------- */
+function drawKG(host, data, opt = {}) {
+  const W = opt.W || 1700, H = opt.H || 560;
+  const font = opt.font || 26;
+  const m = kgModel(data, { episodes: opt.episodes });
+  if (!m.nodes.length) { host.innerHTML = '<div class="loading">图里还没有实体</div>'; return; }
+  const { pos, epY, x0 } = kgLayout(m, W, H, { episodes: opt.episodes, font });
+  const hit = new Map((opt.hits || []).map(h => [h.uuid, h.rank]));
+  const fresh = opt.fresh || null;  // write page: what this session added or touched
+  const isOn = e => hit.has(e.uuid) || !!(fresh && fresh.edges.has(e.uuid));
+  const focus = hit.size > 0 || !!fresh;
+  const hitNodes = new Set();
+  for (const e of m.edges) if (isOn(e)) { hitNodes.add(e.s); hitNodes.add(e.t); }
+  if (fresh) m.nodes.forEach((n, i) => { if (fresh.nodes.has(n.id)) hitNodes.add(i); });
+  const STEP = 0.75;  // seconds per episode in the build animation
+  const anim = (born, extra = 0) => opt.animate ? ` style="animation-delay:${(born * STEP + extra).toFixed(2)}s"` : '';
+  const A = opt.animate ? ' kg-in' : '';
+  const svg = [`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" class="kg${focus ? ' focus' : ''}${focus && m.nodes.length > 14 ? ' dense' : ''}">`,
+    `<defs><marker id="kg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs>`];
+  const sessions = new Map((opt.sessions || []).map(s => [s.id, s]));
+  // mentions
+  if (m.eps.length) {
+    for (const mm of m.ments) {
+      const p = pos[mm.n], y = epY(mm.ep);
+      svg.push(`<path class="kg-ment${A}" data-ep="${mm.ep}" data-n="${mm.n}"${anim(mm.ep, 0.15)} d="M${x0 - 40} ${y} C ${x0 + 40} ${y}, ${p.x - 120} ${p.y}, ${p.x} ${p.y}"/>`);
+    }
+  }
+  // edges: quadratic curves, parallel edges fanned out
+  const pairCount = new Map();
+  const edgeSvg = [], labelSvg = [];
+  // occupied boxes: node circles + their names (edge labels avoid these)
+  const occ = m.nodes.map((n, i) => {
+    const r = 12 + 3 * Math.min(n.deg, 5), p = pos[i], w = estW(n.name, font, 0.66) + 16;
+    return { x1: Math.min(p.x - r, p.x - w / 2), x2: Math.max(p.x + r, p.x + w / 2), y1: p.y - r, y2: p.y + r + font + 10 };
+  });
+  for (const e of m.edges) {
+    const key = e.s < e.t ? `${e.s}-${e.t}` : `${e.t}-${e.s}`;
+    const nth = pairCount.get(key) || 0;
+    pairCount.set(key, nth + 1);
+    const a = pos[e.s], b = pos[e.t];
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+    const bend = (nth % 2 ? -1 : 1) * (28 + 46 * Math.ceil(nth / 2)) * (e.s < e.t ? 1 : -1);
+    const cx = (a.x + b.x) / 2 - dy / d * bend, cy = (a.y + b.y) / 2 + dx / d * bend;
+    const rT = 12 + 3 * Math.min(m.nodes[e.t].deg, 5) + 4;
+    const ex = b.x - (b.x - cx) / (Math.hypot(b.x - cx, b.y - cy) || 1) * rT;
+    const ey = b.y - (b.y - cy) / (Math.hypot(b.x - cx, b.y - cy) || 1) * rT;
+    const label = humanRel(e.name);
+    const lw = estW(label, 17, 0.56) + 14;
+    let mx = 0, my = 0, best = Infinity;
+    for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.22, 0.78]) {
+      const px = (1 - t) * (1 - t) * a.x + 2 * t * (1 - t) * cx + t * t * b.x;
+      const py = (1 - t) * (1 - t) * a.y + 2 * t * (1 - t) * cy + t * t * b.y;
+      const box = { x1: px - lw / 2, x2: px + lw / 2, y1: py - 13, y2: py + 11 };
+      let cost = Math.abs(t - 0.5) * 50;
+      for (const o of occ) cost += Math.max(0, Math.min(box.x2, o.x2) - Math.max(box.x1, o.x1)) * Math.max(0, Math.min(box.y2, o.y2) - Math.max(box.y1, o.y1));
+      if (cost < best) { best = cost; mx = px; my = py; }
+    }
+    occ.push({ x1: mx - lw / 2, x2: mx + lw / 2, y1: my - 13, y2: my + 11 });
+    const col = m.nodes[e.s].color;
+    const inv = !!e.invalid_at;
+    const on = isOn(e);
+    const cls = `kg-edge${inv ? ' inv' : ''}${on ? ' on' : ''}${A}`;
+    edgeSvg.push(`<g class="${cls}" data-e="${escHtml(e.uuid)}"${anim(e.born, 0.45)}>
+      <path class="hitbox" d="M${a.x} ${a.y} Q ${cx} ${cy} ${ex} ${ey}"/>
+      <path class="line" d="M${a.x} ${a.y} Q ${cx} ${cy} ${ex} ${ey}" stroke="${inv ? '#a8a29e' : col}" marker-end="url(#kg-arrow)"/></g>`);
+    if (hit.has(e.uuid)) {
+      labelSvg.push(`<g class="kg-rank${A}"${anim(e.born, 0.5)}><circle cx="${mx}" cy="${my}" r="19" fill="${col}"/><text x="${mx}" y="${my + 7}" text-anchor="middle" font-size="21" font-weight="800" fill="#fff">${hit.get(e.uuid)}</text></g>`);
+    } else if (on || !focus || opt.labelsAll) {
+      labelSvg.push(`<g class="kg-elabel${inv ? ' inv' : ''}${on ? ' on' : ''}${A}" data-e="${escHtml(e.uuid)}"${anim(e.born, 0.55)}><rect x="${mx - lw / 2}" y="${my - 13}" width="${lw}" height="24" rx="12"/><text x="${mx}" y="${my + 5}" text-anchor="middle">${escHtml(label)}${inv ? ' ✕' : ''}</text></g>`);
+    }
+  }
+  svg.push(...edgeSvg);
+  // episodes column
+  m.eps.forEach((ep, i) => {
+    const y = epY(i);
+    const s = sessions.get(ep.name);
+    const date = fmtCardDate(s?.date || ep.valid_at || '').slice(0, 5);
+    const text = s ? String(s.messages[0].content).replace(/^\[[^\]]*\]\s*/, '') : ep.name;
+    let t = text;
+    if (estW(t, 21) > x0 - 80) { while (t && estW(t + '…', 21) > x0 - 80) t = t.slice(0, -1); t += '…'; }
+    svg.push(`<g class="kg-ep${A}" data-ep="${i}"${anim(i)}><rect x="8" y="${y - 30}" width="${x0 - 48}" height="60" rx="10"/>
+      <text x="22" y="${y - 6}" class="d">${escHtml(date)}</text><text x="22" y="${y + 20}" class="t">${escHtml(t)}</text></g>`);
+  });
+  // nodes
+  const nameSvg = [];
+  m.nodes.forEach((n, i) => {
+    const r = 12 + 3 * Math.min(n.deg, 5);
+    const p = pos[i];
+    const on = hitNodes.has(i);
+    svg.push(`<g class="kg-node${on ? ' on' : ''}${A}" data-n="${i}"${anim(n.born, 0.3)}>
+      <circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${n.color}"/></g>`);
+    nameSvg.push(`<g class="kg-node kg-name${on ? ' on' : ''}${A}" data-n="${i}"${anim(n.born, 0.3)}><text x="${p.x}" y="${p.y + r + font + 2}" text-anchor="middle" font-size="${font}">${escHtml(n.name)}</text></g>`);
+  });
+  svg.push(...labelSvg, ...nameSvg);
+  svg.push('</svg>');
+  host.innerHTML = svg.join('');
+  bindKG(host, m);
+}
+
+function hideTip() { const t = document.getElementById('s2-tip'); if (t) t.style.display = 'none'; }
+function tipEl() {
+  let tip = document.getElementById('s2-tip');
+  if (!tip) { tip = document.createElement('div'); tip.id = 's2-tip'; document.body.appendChild(tip); }
+  return tip;
+}
+
+function bindKG(host, m) {
+  const svg = $('svg', host);
+  const tip = tipEl();
+  const move = ev => {
+    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 20, ev.clientX + 16) + 'px';
+    tip.style.top = Math.min(innerHeight - tip.offsetHeight - 12, ev.clientY + 16) + 'px';
+  };
+  const edgeTip = e => `${escHtml(e.fact || '')}<span class="tv">${escHtml(humanRel(e.name))} · 生效 ${escHtml(String(e.valid_at || '?').slice(0, 10))}${e.invalid_at ? ' · 失效 ' + escHtml(String(e.invalid_at).slice(0, 10)) : ''}</span>`;
+  const clear = () => { svg.classList.remove('hover'); $$('.hl', svg).forEach(x => x.classList.remove('hl')); tip.style.display = 'none'; };
+  $$('.kg-edge, .kg-elabel', svg).forEach(g => {
+    const e = m.edges.find(x => x.uuid === g.dataset.e);
+    if (!e) return;
+    g.addEventListener('mouseenter', ev => {
+      svg.classList.add('hover');
+      $$(`[data-e="${CSS.escape(e.uuid)}"]`, svg).forEach(x => x.classList.add('hl'));
+      $$(`.kg-node[data-n="${e.s}"], .kg-node[data-n="${e.t}"]`, svg).forEach(x => x.classList.add('hl'));
+      tip.innerHTML = edgeTip(e); tip.style.display = 'block'; move(ev);
+    });
+    g.addEventListener('mousemove', move);
+    g.addEventListener('mouseleave', clear);
+  });
+  $$('.kg-node', svg).forEach(g => {
+    const i = Number(g.dataset.n), n = m.nodes[i];
+    g.addEventListener('mouseenter', ev => {
+      svg.classList.add('hover');
+      $$(`.kg-node[data-n="${i}"]`, svg).forEach(x => x.classList.add('hl'));
+      for (const e of m.edges) if (e.s === i || e.t === i) {
+        $$(`[data-e="${CSS.escape(e.uuid)}"]`, svg).forEach(x => x.classList.add('hl'));
+        $$(`.kg-node[data-n="${e.s}"], .kg-node[data-n="${e.t}"]`, svg).forEach(x => x.classList.add('hl'));
+      }
+      $$(`.kg-ment[data-n="${i}"]`, svg).forEach(x => { x.classList.add('hl'); $$(`.kg-ep[data-ep="${x.dataset.ep}"]`, svg).forEach(y => y.classList.add('hl')); });
+      tip.innerHTML = `<b>${escHtml(n.name)}</b><br>${escHtml(n.summary)}`; tip.style.display = 'block'; move(ev);
+    });
+    g.addEventListener('mousemove', move);
+    g.addEventListener('mouseleave', clear);
+  });
+  $$('.kg-ep', svg).forEach(g => {
+    g.addEventListener('mouseenter', () => {
+      svg.classList.add('hover');
+      g.classList.add('hl');
+      $$(`.kg-ment[data-ep="${g.dataset.ep}"]`, svg).forEach(x => { x.classList.add('hl'); $$(`.kg-node[data-n="${x.dataset.n}"]`, svg).forEach(y => y.classList.add('hl')); });
+    });
+    g.addEventListener('mouseleave', clear);
+  });
+}
+
+/* ---------------- 3 / 5 · 提问：每个系统是怎么找的 ---------------- */
+
+const HOW = {
+  control:  { label: '不检索' },
+  hermes:   { label: '文件整份 + Agent 自己搜' },
+  mem0:     { label: '问题变向量，给每条打分' },
+  graphiti: { label: '关键词 + 向量两路，再融合' },
+};
 
 function askCfg(n) {
-  const st = S.state?.tracks || {};
-  if (n === 3) {
-    return { n, track: 'life-demo', time: '2026-11-08 10:00', probeKind: 'D1', cols: $('#s3-cols'), input: $('#s3-input') };
-  }
-  return { n, track: 'night-run-live', time: '2026-11-02 23:30', probeKind: 'D2', cols: $('#s5-cols'), input: $('#s5-input') };
+  if (n === 3) return { n, track: 'life-demo', time: '2026-11-08 10:00', cols: $('#s3-cols'), input: $('#s3-input'), btn: $('#s3-btn') };
+  return { n, track: 'night-run-live', time: '2026-11-02 23:30', cols: $('#s5-cols'), input: $('#s5-input'), btn: $('#s5-btn') };
 }
 
 function setupCols(n) {
   const cfg = askCfg(n);
-  cfg.cols.innerHTML = BACKENDS.map(b => `
-    <div class="col" data-b="${b.key}">
-      <div class="col-head" title="点击放大 / 还原">${escHtml(b.name)}</div>
-      <div class="col-status" data-status>${escHtml(HOW[b.key].label)}</div>
-      <div class="qline" data-query></div>
-      <div class="hits" data-hits></div>
-      <div class="col-cost" data-cost></div>
-      <div class="answer" data-answer></div>
-    </div>`).join('');
+  cfg.cols.classList.add('askbody');
+  cfg.cols.innerHTML = `<div class="sumrow">${BACKENDS.map(b => `
+      <div class="sum${b.key === S.ask[n].sel ? ' sel' : ''}" data-b="${b.key}">
+        <div class="sum-h"><span class="sum-name">${escHtml(b.name)}</span><span class="sum-how">${escHtml(HOW[b.key].label)}</span></div>
+        <div class="sum-st" data-st></div>
+        <div class="sum-ans" data-ans><span class="dim">还没问</span></div>
+      </div>`).join('')}</div>
+    <div class="detail" data-detail></div>`;
   cfg.cols.addEventListener('click', e => {
-    const head = e.target.closest('.col-head');
-    if (head) {
-      const col = head.closest('.col');
-      const on = !col.classList.contains('zoom');
-      $$('.col', cfg.cols).forEach(c => c.classList.remove('zoom'));
-      col.classList.toggle('zoom', on);
-      cfg.cols.classList.toggle('zoomed', on);
-      return;
-    }
-    const hit = e.target.closest('.hit');
-    if (hit) hit.classList.toggle('open');
+    const card = e.target.closest('.sum');
+    if (card) selectCol(n, card.dataset.b);
   });
-  $(n === 3 ? '#s3-btn' : '#s5-btn').addEventListener('click', () => runAsk(n));
+  cfg.btn.addEventListener('click', () => runAsk(n));
   cfg.input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); runAsk(n); }
   });
+  renderDetail(n);
+}
+
+function selectCol(n, key) {
+  S.ask[n].sel = key;
+  $$('.sum', askCfg(n).cols).forEach(c => c.classList.toggle('sel', c.dataset.b === key));
+  hideTip();
+  renderDetail(n);
+}
+
+function cycleCol(n, d) {
+  const keys = BACKENDS.map(b => b.key);
+  const i = keys.indexOf(S.ask[n].sel);
+  selectCol(n, keys[(i + d + keys.length) % keys.length]);
 }
 
 function enterAsk(n) {
   if (!S.ask[n]) {
-    S.ask[n] = { running: false, done: false, started: false };
+    S.ask[n] = { running: false, done: false, started: false, sel: 'hermes', res: {} };
     setupCols(n);
   }
   getState().then(() => {
@@ -628,132 +818,272 @@ async function runAsk(n) {
   }
   st.running = true;
   st.started = true;
-  const btn = $(n === 3 ? '#s3-btn' : '#s5-btn');
-  btn.disabled = true;
-
+  st.res = {};
+  if (S.cost) S.cost[n] = {};  // the read-cost page shows this question only
+  cfg.btn.disabled = true;
   const prompt = `[系统时间] ${cfg.time}\n${text}`;
-  const probe = probeFor(cfg.track, prompt);
-
-  const jobs = BACKENDS.map(b => runColumn(n, cfg, b, prompt, probe));
-  await Promise.allSettled(jobs);
+  st.probe = probeFor(cfg.track, prompt);
+  st.prompt = text;
+  renderDetail(n);
+  await Promise.allSettled(BACKENDS.map(b => runColumn(n, cfg, b, prompt)));
   st.running = false;
   st.done = true;
-  btn.disabled = false;
+  cfg.btn.disabled = false;
   window.__liveReady = true;
 }
 
-function colEl(cfg, key) {
-  return cfg.cols.querySelector(`.col[data-b="${key}"]`);
-}
-
-function setStatus(el, html) { el.innerHTML = html; }
 const timerHtml = t0 => `<span class="timer" data-t0="${t0}">0.0 s</span>`;
 
-/* How each column finds its memories: shown on stage instead of a score. */
-const HOW = {
-  control:     { label: '不检索', search: false },
-  sqlite_fts5: { label: '关键词', search: true },
-  hermes_file: { label: '整份加载', search: false },
-  mem0:        { label: '语义+关键词', search: true },
-  graphiti:    { label: '语义+关键词+图', search: true },
-};
+function sumEl(n, key) { return askCfg(n).cols.querySelector(`.sum[data-b="${key}"]`); }
 
-async function runColumn(n, cfg, b, prompt, probe) {
-  const col = colEl(cfg, b.key);
-  const statusEl = $('[data-status]', col);
-  const queryEl = $('[data-query]', col);
-  const hitsEl = $('[data-hits]', col);
-  const ansEl = $('[data-answer]', col);
-  const costEl = $('[data-cost]', col);
-  const ev = probe?.evidence_any || [];
-  const stale = probe?.stale_any || [];
-  const how = HOW[b.key];
+function paintSum(n, key) {
+  const r = S.ask[n].res[key] || {};
+  const el = sumEl(n, key);
+  if (!el) return;
+  const stEl = $('[data-st]', el), ansEl = $('[data-ans]', el);
+  const bits = [];
+  if (r.error) bits.push(`<span class="err">${escHtml(r.error)}</span>`);
+  else if (!r.read) bits.push(`<span class="ph">读取中</span> ${timerHtml(r.t0)}`);
+  else {
+    const hits = r.read.read.hits || [];
+    if (key === 'hermes') bits.push(`文件 ${hits.length} 条常驻`);
+    else if (key !== 'control') bits.push(`${fmtMs(r.read.read.latency_ms)} · 取回 ${hits.length} 条`);
+    if (!r.answer) bits.push(`<span class="ph">作答中</span> ${timerHtml(r.t1)}`);
+    else {
+      const calls = (r.answer.action.tool_calls || []).filter(t => t.name === 'session_search').length;
+      if (key === 'hermes') bits.push(calls ? `搜了 ${calls} 次` : '没有搜');
+      bits.push(`上下文 <b>${r.answer.inject?.chars ?? 0}</b> 字`);
+      bits.push(`作答 ${fmtMs(r.answer.action.latency_ms)}`);
+    }
+  }
+  stEl.innerHTML = bits.join(' · ');
+  const a = r.answer?.action;
+  const ev = S.ask[n].probe?.evidence_any || [];
+  ansEl.innerHTML = a ? (n === 5 ? richSentences(a.answer || '', ev) : rich(a.answer || '', { ev })) : (r.t0 ? '' : '<span class="dim">还没问</span>');
+}
 
-  ansEl.innerHTML = '';
-  hitsEl.innerHTML = '';
-  queryEl.innerHTML = '';
-  costEl.innerHTML = '';
-  col.classList.remove('answered');
-  hitsEl.classList.remove('none');
-  const t0 = Date.now();
-  setStatus(statusEl, b.key === 'control' ? escHtml(how.label)
-    : `${escHtml(how.label)} · <span class="ph">读取中…</span> ${timerHtml(t0)}`);
-
-  let read = { latency_ms: 0, hits: [] };
+async function runColumn(n, cfg, b, prompt) {
+  const st = S.ask[n];
+  const r = st.res[b.key] = { t0: Date.now() };
+  paintSum(n, b.key);
   try {
-    if (b.key !== 'control') {
-      const r = MOCK_ON ? await mockRead(cfg.track, b) : await api('/api/live/read', { track: cfg.track, backend: b.key, prompt });
-      read = r.read;
-      const hits = read.hits || [];
-      if (read.backend_query) {
-        queryEl.innerHTML = `<span class="qk">实际查询</span> <code>${escHtml(read.backend_query)}</code>`;
-      }
-      renderHits(hitsEl, hits, ev, stale, { rule: n === 5, all: b.key === 'hermes_file' });
-      if (!hits.length) {
-        hitsEl.classList.add('none');
-        hitsEl.innerHTML = '<div class="ans-empty">一条也没取回</div>';
-      }
-      const got = b.key === 'hermes_file' ? `${hits.length} 条全放` : `${hits.length} 条`;
-      const ms = how.search ? ` · ${fmtMs(read.latency_ms)}` : '';
-      setStatus(statusEl, `${escHtml(how.label)}${ms} · ${got}`);
+    if (b.key === 'control') {
+      r.read = { read: { latency_ms: 0, hits: [] } };
     } else {
-      hitsEl.classList.add('none');
-      hitsEl.innerHTML = '<div class="ans-empty">什么也不放，直接作答</div>';
+      r.read = MOCK_ON ? await mockRead(cfg.track, b) : await api('/api/live/read', { track: cfg.track, backend: b.key, prompt });
     }
   } catch (err) {
-    setStatus(statusEl, `<span class="err">读取失败：${escHtml(err.message)}</span>`);
+    r.error = '读取失败：' + err.message;
+    paintSum(n, b.key); if (st.sel === b.key) renderDetail(n);
     return;
   }
-
-  const t1 = Date.now();
-  costEl.innerHTML = `<span class="ph">作答中…</span> ${timerHtml(t1)}`;
-
+  r.t1 = Date.now();
+  paintSum(n, b.key); if (st.sel === b.key) renderDetail(n);
   try {
-    const r = MOCK_ON ? await mockAnswer(cfg.track, b) : await api('/api/live/answer', { track: cfg.track, backend: b.key, prompt, hits: read.hits || [] });
-    const ans = r.action || {};
-    if (ans.error) throw new Error(ans.error);
-    const tools = (ans.tool_calls || []).length
-      ? `<div class="tools">${ans.tool_calls.map(t => `<span class="tool">调用了 ${escHtml(t.name)}</span>`).join('')}</div>`
-      : '';
-    const body = n === 5 ? richSentences(ans.answer || '', ev) : rich(ans.answer || '', { ev, stale });
-    ansEl.innerHTML = tools + `<div class="ans-text">${body}</div>`;
-    const chars = r.inject?.chars ?? 0;
-    costEl.innerHTML = `上下文 <b>${chars}</b> 字 · 作答 ${fmtMs(ans.latency_ms)}`;
-    col.classList.add('answered');
+    const a = MOCK_ON ? await mockAnswer(cfg.track, b) : await api('/api/live/answer', { track: cfg.track, backend: b.key, prompt, hits: r.read.read.hits || [] });
+    if (a.action?.error) throw new Error(a.action.error);
+    r.answer = a;
     S.cost = S.cost || {};
     S.cost[n] = S.cost[n] || {};
-    S.cost[n][b.key] = { read_ms: how.search ? read.latency_ms : null, hits: (read.hits || []).length, chars };
+    S.cost[n][b.key] = { prompt, read_ms: b.key === 'control' ? null : r.read.read.latency_ms,
+      hits: (r.read.read.hits || []).length, chars: a.inject?.chars ?? 0,
+      searches: (a.action.tool_calls || []).filter(t => t.name === 'session_search').length,
+      llm_calls: a.action.llm_calls || 0, tokens: a.action.tokens || 0, ans_ms: a.action.latency_ms || 0 };
+    if (S.screen === 'rc') enterReadCost();
   } catch (err) {
-    costEl.innerHTML = `<span class="err">作答失败：${escHtml(err.message)}</span>`;
+    r.error = '作答失败：' + err.message;
+  }
+  paintSum(n, b.key);
+  if (st.sel === b.key) renderDetail(n);
+}
+
+/* ---- the detail pane: how the selected system found its memories ---- */
+
+function stepHtml(num, title, body, cls = '') {
+  return `<div class="step ${cls}"><div class="st-h"><span class="st-n">${num}</span>${title}</div><div class="st-b">${body}</div></div>`;
+}
+const ARROW = '<div class="st-arrow">→</div>';
+const waitHtml = (label, t0) => `<div class="wait"><span class="ph">${label}</span> ${t0 ? timerHtml(t0) : ''}</div>`;
+
+function answerStep(num, r, n, opt = {}) {
+  const ev = S.ask[n].probe?.evidence_any || [];
+  let body;
+  if (r.error) body = `<div class="err">${escHtml(r.error)}</div>`;
+  else if (!r.answer) body = waitHtml('作答中', r.t1);
+  else {
+    const a = r.answer.action;
+    const tools = (a.tool_calls || []).filter(t => t.name !== 'session_search');
+    body = (tools.length ? `<div class="tools">${tools.map(t => `<span class="tool">调用了 ${escHtml(t.name)}</span>`).join('')}</div>` : '') +
+      `<div class="ans-text">${n === 5 ? richSentences(a.answer || '', ev) : rich(a.answer || '', { ev })}</div>
+       <div class="ans-meta">放进上下文 <b>${r.answer.inject?.chars ?? 0}</b> 字 · 作答 ${fmtMs(a.latency_ms)}</div>`;
+  }
+  return stepHtml(num, opt.title || '模型拿着这些回答', body, 'answer-step');
+}
+
+function renderDetail(n) {
+  const st = S.ask[n];
+  const el = $('[data-detail]', askCfg(n).cols);
+  if (!el) return;
+  const key = st.sel;
+  const b = byKey(key);
+  const r = st.res[key];
+  const head = `<div class="dt-h"><b>${escHtml(b.name)}</b> 是怎么找的<span class="dt-sub">${escHtml(HOW[key].label)}</span><span class="dt-keys">↑↓ 切换系统</span></div>`;
+  if (!r) {
+    el.innerHTML = head + `<div class="dt-empty">点“问”，四个系统同时去找；这里一步步展开 ${escHtml(b.name)} 的过程</div>`;
+    return;
+  }
+  let body;
+  if (key === 'control') body = detailControl(r, n);
+  else if (key === 'hermes') body = detailHermes(r, n);
+  else if (key === 'mem0') body = detailMem0(r, n);
+  else body = detailGraphiti(r, n);
+  el.innerHTML = head + `<div class="steps ${key}">${body}</div>`;
+  if (key === 'graphiti' && r.read?.read?.graph) {
+    const host = $('[data-kg]', el);
+    const tr = r.read.read.trace || {};
+    const hits = (tr.rrf || []).map((x, i) => ({ uuid: x.uuid, rank: i + 1 }));
+    if (host) drawKG(host, r.read.read.graph, { W: 640, H: 620, hits, font: 30 });
   }
 }
 
-function cleanHit(text) {
-  return String(text || '').replace(/^\s*\[[^\]]*·[^\]]*\]\s*/, '');
+function detailControl(r, n) {
+  return stepHtml(1, '不检索', '<div class="big-note">系统提示里没有任何记忆<br>模型只能凭问题本身回答</div>') + ARROW + answerStep(2, r, n);
 }
 
-function renderHits(el, hits, ev, stale, opt = {}) {
-  el.classList.remove('none');
-  const items = (hits || []).slice(0, opt.all ? hits.length : 5).map((h, i) => {
-    const text = cleanHit(h.text);
-    const low = text.toLowerCase();
-    const evHit = (ev || []).some(t => low.includes(String(t).toLowerCase()));
-    const stHit = (stale || []).some(t => low.includes(String(t).toLowerCase()));
-    const ruleHit = opt.rule ? matchesRule(text, ev) : false;
-    return { rank: h.rank != null ? h.rank : i + 1, text, full: evHit || stHit || ruleHit, rule: ruleHit };
+function detailHermes(r, n) {
+  if (r.error && !r.read) return `<div class="err">${escHtml(r.error)}</div>`;
+  const ev = S.ask[n].probe?.evidence_any || [];
+  const hits = r.read?.read?.hits || [];
+  const files = hits.map(h => {
+    const m = String(h.text).match(/^\[([^\]]+)\]\s*(.*)$/s);
+    return { tag: m ? m[1] : '', text: m ? m[2] : h.text };
   });
-  // Keep the search ranking; only the whole-file column (no ranking) floats highlighted entries up.
-  const ordered = opt.all ? items.filter(x => x.full).concat(items.filter(x => !x.full)) : items;
-  el.innerHTML = ordered.map(x => `
-    <div class="hit${x.full ? ' full' : ''}${x.rule ? ' rule' : ''}" title="点击展开/收起">
-      <span class="r">${x.rank}</span>
-      <span class="x">${rich(x.text, { ev, stale, rule: opt.rule ? RULE_SRC : '' })}</span>
-    </div>`).join('');
+  const s1 = stepHtml(1, '会话开始：两份文件整份放进提示', !r.read ? waitHtml('读取中', r.t0) :
+    `<div class="hm-files">${files.map(f => `<div class="hf" data-pop="${popId(`Hermes · ${escHtml(f.tag)}`, `<div class="pop-txt">${rich(f.text, { ev, rule: n === 5 ? RULE_SRC : '' })}</div>`)}"><span class="hf-tag">${escHtml(f.tag)}</span>${rich(f.text, { ev, rule: n === 5 ? RULE_SRC : '' })}</div>`).join('') || '<div class="dim">两份文件都是空的</div>'}</div>
+     <div class="st-foot">${files.length} 条 · 不检索，原样全放</div>`, 'files-step');
+  let s2;
+  if (!r.answer) s2 = waitHtml(r.read ? 'Agent 读题，决定要不要搜' : '等待', r.t1);
+  else {
+    const calls = (r.answer.action.tool_calls || []).filter(t => t.name === 'session_search');
+    s2 = calls.length ? calls.map((c, i) => searchCallHtml(c, i, ev, n)).join('') :
+      '<div class="big-note">Agent 觉得文件里的内容够用，<br>没有调用 session_search</div>';
+  }
+  return s1 + ARROW + stepHtml(2, 'Agent 自己决定搜什么：<code>session_search</code>', s2, 'search-step') + ARROW + answerStep(3, r, n);
+}
+
+const ROUTE_TEXT = {
+  trigram: '中文词都 ≥3 字 → trigram 全文索引',
+  like: '有中文词不到 3 字 → 逐词子串匹配（LIKE）',
+  fts5: '英文 → FTS5 全文索引',
+  'fts5 · any-term': '英文 → FTS5，全部命中失败后改为任一词',
+  empty: '查询为空',
+};
+
+function searchCallHtml(c, i, ev, n) {
+  const d = c.details || {};
+  const sessions = d.sessions || [];
+  const dates = sessionDates();
+  return `<div class="call">
+    <div class="call-q"><span class="call-i">第 ${i + 1} 次</span>query = <code>${escHtml(c.args?.query ?? '')}</code></div>
+    <div class="call-route">${escHtml(ROUTE_TEXT[d.route] || d.route || '')}${d.match ? ` · <code>${escHtml(d.match)}</code>` : ''}${d.ms != null ? ` · ${d.ms} ms` : ''}</div>
+    <div class="call-res">${sessions.length ? sessions.map(s => `
+      <div class="sess"><div class="sess-h">${escHtml(s.session_id)} <span>${escHtml(fmtCardDate(dates[s.session_id] || ''))}</span>${s.hydrated ? '<em>整段返回</em>' : ''}</div>
+      ${s.messages.map(m => `<div class="sm${m.hit ? ' hit' : ''}"><b>${m.role === 'user' ? '用户' : '助手'}</b>${rich(String(m.content).replace(/^\[[^\]]*\]\s*/, ''), { ev, rule: n === 5 ? RULE_SRC : '' })}</div>`).join('')}</div>`).join('')
+      : '<div class="dim">0 条</div>'}</div>
+  </div>`;
+}
+
+function scoreBar(v, max = 1) {
+  const w = Math.max(0, Math.min(1, (v || 0) / max)) * 100;
+  return `<span class="sb"><i style="width:${w}%"></i></span><span class="sv">${(v || 0).toFixed(2)}</span>`;
+}
+
+function detailMem0(r, n) {
+  const ev = S.ask[n].probe?.evidence_any || [];
+  if (!r.read) return r.error ? `<div class="err">${escHtml(r.error)}</div>` : waitHtml('检索中', r.t0);
+  const tr = r.read.read.trace || {};
+  const all = tr.all || [];
+  const k = tr.k || 5;
+  const sem = all.map(x => x.details?.semantic_score || 0);
+  const anyKw = all.some(x => (x.details?.bm25_score || 0) > 0 || (x.details?.entity_boost || 0) > 0);
+  const s1 = stepHtml(1, '把问题变成向量', `
+    <div class="q-card">${escHtml(S.ask[n].prompt || '')}</div>
+    <div class="flow-down">↓ text-embedding-v4</div>
+    <div class="vec-card">1024 维向量</div>
+    <div class="st-foot">另两路同时算：BM25 关键词、实体匹配</div>
+    ${anyKw ? '' : '<div class="note">这次关键词和实体两路都是 0：Mem0 开源版用英文分词和实体模型（spaCy），中文问题对不上，只剩语义一路在起作用</div>'}`, 'q-step');
+  const rows = all.map((x, i) => {
+    const d = x.details || {};
+    const inCtx = i < k;
+    const txt = rich(x.memory || '', { ev });
+    return `${i === k ? `<div class="cut">↑ 前 ${k} 条放进上下文 · 下面的不放</div>` : ''}
+      <div class="m-row${inCtx ? ' in' : ''}" data-pop="${popId(`Mem0 · 第 ${i + 1} 名 · ${inCtx ? '放进上下文' : '没放进上下文'}`,
+        `<div class="pop-txt">${txt}</div>
+        <div class="pop-kv"><span>语义</span><b>${(d.semantic_score || 0).toFixed(3)}</b><span>关键词</span><b>${(d.bm25_score || 0).toFixed(3)}</b><span>实体</span><b>${(d.entity_boost || 0).toFixed(3)}</b><span>总分</span><b>${(x.score || 0).toFixed(3)}</b></div>`)}">
+        <span class="m-rank">${i + 1}</span>
+        <span class="m-txt">${txt}</span>
+        <span class="m-sc"><em>语义</em>${scoreBar(d.semantic_score)}</span>
+        <span class="m-sc"><em>关键词</em>${scoreBar(d.bm25_score)}</span>
+        <span class="m-sc"><em>实体</em>${scoreBar(d.entity_boost)}</span>
+        <span class="m-final">${(x.score || 0).toFixed(3)}</span>
+      </div>`;
+  }).join('');
+  const s2 = stepHtml(2, `给库里每条记忆打分，按总分排序，取前 ${k}`, `<div class="m-table">${rows || '<div class="dim">库里没有记忆</div>'}</div>
+    <div class="st-foot">参与排序 ${all.length} 条（相似度低于阈值 ${all[0]?.details?.threshold ?? 0.1} 的直接丢掉）· 检索 ${fmtMs(r.read.read.latency_ms)}</div>`, 'score-step');
+  return s1 + ARROW + s2 + ARROW + answerStep(3, r, n);
+}
+
+function detailGraphiti(r, n) {
+  const ev = S.ask[n].probe?.evidence_any || [];
+  if (!r.read) return r.error ? `<div class="err">${escHtml(r.error)}</div>` : waitHtml('检索中', r.t0);
+  const tr = r.read.read.trace || {};
+  const facts = tr.facts || {};
+  const cos = tr.cosine_scores || {};
+  const ftq = String(tr.fulltext_query || '').replace(/^\(@group_id:[^)]*\)\s*/, '');
+  const g = r.read.read.graph || { nodes: [], edges: [] };
+  const nodeName = Object.fromEntries((g.nodes || []).map(x => [x.uuid, x.name]));
+  const edgeOf = Object.fromEntries((g.edges || []).map(x => [x.uuid, x]));
+  const day = v => v ? String(v).slice(0, 10) : '';
+  const factPop = (u, title, extra = '') => {
+    const f = facts[u] || {}, e = edgeOf[u] || {};
+    const win = `${day(e.valid_at) || '?'} → ${day(e.invalid_at) || '现在'}`;
+    return popId(`Graphiti · ${title}`, `<div class="pop-txt">${rich(f.fact || '', { ev })}</div>
+      <div class="pop-rel"><b>${escHtml(nodeName[f.source] || '?')}</b> —<code>${escHtml(f.name || '')}</code>→ <b>${escHtml(nodeName[f.target] || '?')}</b></div>
+      <div class="pop-kv"><span>生效</span><b>${escHtml(win)}</b>${extra}</div>`);
+  };
+  const list = (ids, withScore) => ids.slice(0, 6).map((u, i) => `<div class="g-c" data-pop="${factPop(u, `${withScore ? '向量' : '关键词'}第 ${i + 1} 名`, withScore && cos[u] != null ? `<span>余弦相似度</span><b>${cos[u].toFixed(3)}</b>` : '')}"><span class="r">${i + 1}</span><span class="x">${rich(trunc(facts[u]?.fact, 40), { ev })}</span>${withScore && cos[u] != null ? `<span class="g-s">${scoreBar(cos[u])}</span>` : ''}</div>`).join('');
+  const bm = tr.bm25 || [], cs = tr.cosine || [];
+  const s1 = stepHtml(1, '两路分别找关系边', `
+    <div class="way"><div class="way-h">关键词（BM25）<span>${bm.length} 条</span></div>
+      <div class="way-q">实际查询 <code>${escHtml(ftq)}</code></div>
+      ${bm.length ? list(bm, false) : '<div class="note">0 条：整句中文没有空格，被当成一个词，和任何关系原句都对不上</div>'}</div>
+    <div class="way"><div class="way-h">向量（余弦相似度）<span>${cs.length} 条</span></div>${list(cs, true)}</div>`, 'ways-step');
+  const rrf = tr.rrf || [];
+  const rank = (arr, u) => { const i = arr.indexOf(u); return i < 0 ? '—' : `#${i + 1}`; };
+  const fused = rrf.map((x, i) => {
+    const h = (r.read.read.hits || [])[i];
+    const win = h?.details ? `${String(h.details.valid_at || '?').slice(5, 10)} → ${h.details.invalid_at ? String(h.details.invalid_at).slice(5, 10) : '现在'}` : '';
+    return `<div class="f-row" data-pop="${factPop(x.uuid, `融合后第 ${i + 1} 名`, `<span>关键词</span><b>${rank(bm, x.uuid)}</b><span>向量</span><b>${rank(cs, x.uuid)}</b><span>RRF</span><b>${x.score}</b>`)}"><span class="r on">${i + 1}</span><span class="x">${rich(facts[x.uuid]?.fact || '', { ev, rule: n === 5 ? RULE_SRC : '' })}</span>
+      <span class="f-meta">${win ? `<b>${escHtml(win)}</b> · ` : ''}关键词 ${rank(bm, x.uuid)} · 向量 ${rank(cs, x.uuid)} · RRF ${x.score}</span></div>`;
+  }).join('');
+  const s2 = stepHtml(2, `RRF 融合，取前 ${rrf.length} 条边：在图里的位置`, `
+    <div class="g-row"><div class="kg-mini" data-kg></div>
+    <div class="fused">${fused || '<div class="dim">0 条</div>'}</div></div>
+    <div class="st-foot">RRF：每条边按它在两路里的名次打分（1/名次）相加 · 检索 ${fmtMs(r.read.read.latency_ms)} · 边上带生效时间，一起放进上下文</div>`, 'graph-step');
+  return s1 + ARROW + s2 + ARROW + answerStep(3, r, n);
 }
 
 /* ---------------- 4 · 写入 ---------------- */
+/* Same shape as 3/5: a summary card per system on top, and below it the
+   selected system's write process for the selected session, step by step. */
 
 const S4 = () => S.s4;
+const WHOW = {
+  hermes: '原话进库 + 模型改两份文件',
+  mem0: '模型抽事实，只增不改',
+  graphiti: '抽实体和关系，合并进图',
+};
+const HFILE = { memory: 'MEMORY.md', user: 'USER.md' };
 
 async function enter4() {
   window.__liveReady = false;
@@ -763,22 +1093,17 @@ async function enter4() {
     if (!S.s4) {
       S.s4 = {
         sessions: tr.sessions,
-        written: Object.fromEntries(BACKENDS.map(b => [b.key, (tr.status?.[b.key]?.written) || []])),
-        insp: {},
-        blocks: Object.fromEntries(BACKENDS.map(b => [b.key, []])),
-        running: false,
-        busy: {},
-        loaded: false,
-        open: {},
+        written: Object.fromEntries(B4.map(b => [b.key, (tr.status?.[b.key]?.written) || []])),
+        insp: {}, snap: Object.fromEntries(B4.map(b => [b.key, {}])),
+        res: Object.fromEntries(B4.map(b => [b.key, {}])), err: {},
+        running: false, busy: {}, sel: 'hermes', ss: null,
       };
-      renderSessions();
       $('#s4-stamp').textContent = tr.stamp ? `库建立于 ${fmtStamp(tr.stamp)}` : '';
-      renderCols();
+      setupWrite();
+      renderSessions();
       await loadInitial4();
-      setButtons();
-    } else {
-      setButtons();
     }
+    setButtons();
     window.__liveReady = !S.stepMode;
   } catch (err) {
     $('#s4-cols').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
@@ -786,34 +1111,49 @@ async function enter4() {
   }
 }
 
+const sIdx = sid => S4().sessions.findIndex(s => s.id === sid);
+function curSess() {  // the clicked session, else the selected system's latest one
+  const s4 = S4();
+  if (s4.ss) return s4.ss;
+  const k = s4.sel;
+  let best = -1;
+  for (const sid of s4.written[k] || []) best = Math.max(best, sIdx(sid));
+  if (s4.busy[k]) best = Math.max(best, s4.busy[k].n - 1);
+  return s4.sessions[Math.max(0, best)].id;
+}
+
 function renderSessions() {
   const s4 = S4();
   const lesson = '二十分钟';
-  const counts = s4.sessions.map(s => B4.filter(b => (s4.written[b.key] || []).includes(s.id)).length);
-  const busyN = Math.max(0, ...Object.values(s4.busy || {}).map(x => x.n));
+  const cur = curSess();
   $('#s4-sessions').innerHTML = `<div class="s-head">夜间实验 · ${s4.sessions.length} 段对话</div>` + s4.sessions.map((s, i) => {
     const firstUser = s.messages.find(m => m.role === 'user') || s.messages[0];
     const lessonMsg = s.messages.find(m => String(m.content).includes(lesson));
-    const hasLesson = !!lessonMsg;
-    const done = counts[i] === B4.length;
-    const active = !done && busyN === i + 1;
-    const part = !done && !active && counts[i] > 0;
-    const mark = done ? '<span class="badge done">已写入</span>'
-      : active ? '<span class="badge live">写入中</span>'
-      : part ? `<span class="badge">${counts[i]}/4</span>` : '';
-    return `<div class="s-card${s4.open[s.id] ? ' open' : ''}${counts[i] || active ? '' : ' pending'}" data-sid="${s.id}">
-      <div class="d"><span>${escHtml(fmtCardDate(s.date))}</span>${hasLesson ? '<span class="badge">教训</span>' : ''}${mark}</div>
-      ${hasLesson
-        ? `<div class="t full"><span class="lesson">${rich(lessonMsg.content)}</span></div>`
-        : `<div class="t">${rich(firstUser.content)}</div>`}
-      <div class="msgs">${s.messages.map(m => `<div class="s-msg"><b>${m.role === 'user' ? '你' : '助手'}：</b>${lessonHtml(m.content, lesson)}</div>`).join('')}</div>
+    const n = B4.filter(b => (s4.written[b.key] || []).includes(s.id)).length;
+    const live = Object.values(s4.busy).some(x => x.n === i + 1);
+    const mark = n === B4.length ? '<span class="badge done">已写入</span>'
+      : live ? '<span class="badge live">写入中</span>'
+      : n ? `<span class="badge">${n}/${B4.length}</span>` : '';
+    const open = s.id === cur;
+    return `<div class="s-card${open ? ' sel' : ''}${n || live ? '' : ' pending'}" data-sid="${s.id}">
+      <div class="d"><span>${escHtml(fmtCardDate(s.date))}</span>${lessonMsg ? '<span class="badge">教训</span>' : ''}${mark}</div>
+      <div class="t">${lessonMsg ? lessonHtml(lessonMsg.content, lesson) : rich(String(firstUser.content))}</div>
     </div>`;
   }).join('');
   $$('#s4-sessions .s-card').forEach(el => el.addEventListener('click', () => {
-    const sid = el.dataset.sid;
-    s4.open[sid] = !s4.open[sid];
+    s4.ss = el.dataset.sid;
     renderSessions();
+    renderWriteDetail();
+    openSession(s4.sessions.findIndex(x => x.id === el.dataset.sid));
   }));
+}
+
+function openSession(i) {
+  const s = S4().sessions[i];
+  if (!s) return;
+  const lesson = '二十分钟';
+  openPop(`第 ${i + 1} 段对话 · <span class="dim">${escHtml(fmtCardDate(s.date))}</span>`,
+    s.messages.map(m => `<div class="pop-msg ${m.role}"><b>${m.role === 'user' ? '用户' : '助手'}</b><div>${String(m.content).includes(lesson) ? lessonHtml(m.content, lesson) : rich(String(m.content))}</div></div>`).join(''));
 }
 
 function lessonHtml(text, word) {
@@ -821,68 +1161,232 @@ function lessonHtml(text, word) {
   return chunks.map(c => c.includes(word) ? `<span class="lesson">${rich(c)}</span>` : rich(c)).join('');
 }
 
+function setupWrite() {
+  const el = $('#s4-cols');
+  el.innerHTML = `<div class="sumrow">${B4.map(b => `
+      <div class="sum wsum${b.key === S4().sel ? ' sel' : ''}" data-b="${b.key}">
+        <div class="sum-h"><span class="sum-name">${escHtml(b.name)}</span><span class="sum-how">${escHtml(WHOW[b.key])}</span></div>
+        <div class="sum-st" data-st></div>
+        <div class="w-tot" data-tot></div>
+      </div>`).join('')}</div>
+    <div class="detail" data-detail></div>`;
+  el.addEventListener('click', e => {
+    const c = e.target.closest('.sum');
+    if (c) selectW(c.dataset.b);
+  });
+  B4.forEach(b => paintWSum(b.key));
+  renderWriteDetail();
+}
+
+function selectW(key) {
+  S4().sel = key;
+  $$('#s4-cols .sum').forEach(c => c.classList.toggle('sel', c.dataset.b === key));
+  hideTip();
+  renderSessions();
+  renderWriteDetail();
+}
+function cycleW(d) {
+  const keys = B4.map(b => b.key);
+  selectW(keys[(keys.indexOf(S4().sel) + d + keys.length) % keys.length]);
+}
+
 async function loadInitial4() {
   const s4 = S4();
   const results = await Promise.allSettled(B4.map(b => getInspect('night-run-live', b.key)));
-  results.forEach((r, i) => {
-    if (r.status === 'fulfilled') s4.insp[B4[i].key] = r.value;
-  });
+  results.forEach((r, i) => { if (r.status === 'fulfilled') s4.insp[B4[i].key] = r.value; });
   s4.loaded = true;
-  for (const b of BACKENDS) {
-    const n = s4.written[b.key]?.length || 0;
-    if (b.key !== 'control' && n > 0 && s4.insp[b.key] && !s4.blocks[b.key].length) {
-      s4.blocks[b.key].push({
-        label: `本页打开前 · 已写入 ${n} 段`,
-        html: summaryHtml(b.key, s4.insp[b.key]),
-        ts: '',
-      });
-    }
-  }
-  renderCols();
+  B4.forEach(b => paintWSum(b.key));
+  renderWriteDetail();
 }
 
-function summaryHtml(key, insp) {
-  if (key === 'sqlite_fts5') return `<div class="wline dim">表里共 ${(insp.rows || []).length} 行</div>`;
-  if (key === 'hermes_file') {
-    const f = insp.files || {};
-    return `<div class="wline dim">${Object.entries(f).map(([k, v]) => `${k} ${(v.entries || []).length} 条`).join(' · ')}</div>`;
-  }
-  if (key === 'mem0') return `<div class="wline dim">共 ${(insp.memories || []).length} 条记忆</div>`;
-  return `<div class="wline dim">${(insp.nodes || []).length} 个实体 · ${(insp.edges || []).length} 条关系</div>`;
-}
-
-function lampHtml(key) {
-  const s4 = S4();
-  if (key === 'control') return '<div class="lamp">不存</div>';
-  const insp = s4.insp[key];
-  if (!insp) return '<div class="lamp">读取中…</div>';
+function lessonStored(key) {
+  const insp = S4().insp[key];
+  if (!insp) return false;
   const probe = S.state?.tracks['night-run-live']?.probes?.find(p => p.id === 'D2');
-  const ev = probe?.evidence_any || [];
   const all = JSON.stringify(insp).toLowerCase();
-  const ok = ev.some(t => all.includes(String(t).toLowerCase()));
-  return `<div class="lamp${ok ? ' on' : ''}">${ok ? '教训已存下 ✓' : '还没有'}</div>`;
+  return (probe?.evidence_any || []).some(t => all.includes(String(t).toLowerCase()));
 }
 
-function renderCols() {
+function totalsHtml(key, insp) {
+  if (!insp) return '<span class="dim">读取中…</span>';
+  if (key === 'hermes') {
+    const f = insp.files || {};
+    const used = Object.values(f).reduce((a, v) => a + (v.used || 0), 0);
+    return `state.db <b>${(insp.rows || []).length}</b> 行 · 文件 <b>${used}</b> 字`;
+  }
+  if (key === 'mem0') return `库里 <b>${(insp.memories || []).length}</b> 条记忆`;
+  return `<b>${(insp.nodes || []).length}</b> 个实体 · <b>${(insp.edges || []).length}</b> 条关系`;
+}
+
+function paintWSum(key) {
   const s4 = S4();
-  $('#s4-cols').innerHTML = BACKENDS.map(b => {
-    if (b.key === 'control') {
-      return `<div class="wcol control">
-        <div class="wcol-head"><div class="wcol-name">无记忆</div><div class="lamp">不存</div></div>
-      </div>`;
-    }
-    const busy = s4.busy[b.key];
-    return `<div class="wcol" data-b="${b.key}">
-      <div class="wcol-head">
-        <div class="wcol-name">${escHtml(b.name)}</div>
-        ${lampHtml(b.key)}
-        ${busy ? `<div class="lamp" data-busy="${b.key}" data-t0="${busy.t0}">第 ${busy.n} 段 · 写入中 0.0 s</div>` : ''}
-      </div>
-      <div class="wcol-body" data-body="${b.key}">
-        ${s4.blocks[b.key].map(w => `<div class="wblock"><div class="wb-head">${w.label}</div>${w.html}</div>`).join('') || '<div class="wline dim">还没有写入</div>'}
-      </div>
-    </div>`;
+  const el = $(`#s4-cols .sum[data-b="${key}"]`);
+  if (!el) return;
+  const busy = s4.busy[key];
+  const done = s4.written[key] || [];
+  let st;
+  if (busy) st = `<span class="ph">第 ${busy.n} 段 · 写入中</span> ${timerHtml(busy.t0)}`;
+  else if (s4.err[key]) st = `<span class="err">${escHtml(s4.err[key])}</span>`;
+  else if (!done.length) st = '<span class="dim">还没有写入</span>';
+  else {
+    const last = done[done.length - 1], r = s4.res[key][last];
+    st = `已写 ${done.length} 段` + (r ? ` · 第 ${sIdx(last) + 1} 段用时 <b>${fmtSec(r.ms)}</b> 秒 · ${callsTxt(r.stats)}` : '');
+  }
+  $('[data-st]', el).innerHTML = st;
+  $('[data-tot]', el).innerHTML = totalsHtml(key, s4.insp[key]) +
+    (done.length ? (lessonStored(key) ? ' · <span class="lamp-on">教训已存下 ✓</span>' : ' · <span class="dim">教训还没有</span>') : '');
+}
+
+function renderWriteDetail() {
+  const s4 = S4();
+  const el = $('#s4-cols [data-detail]');
+  if (!el) return;
+  const key = s4.sel, b = byKey(key), sid = curSess(), i = sIdx(sid);
+  const head = `<div class="dt-h"><b>${escHtml(b.name)}</b> 怎么写第 ${i + 1} 段<span class="dt-sub">${escHtml(fmtCardDate(s4.sessions[i].date))} · ${escHtml(WHOW[key])}</span><span class="dt-keys">点左边换一段 · ↑↓ 切换系统</span></div>`;
+  const busy = s4.busy[key];
+  const written = (s4.written[key] || []).includes(sid);
+  let body;
+  if (busy && busy.n === i + 1) body = `<div class="dt-empty"><span class="ph">写入中</span> ${timerHtml(busy.t0)}</div>`;
+  else if (!written) body = `<div class="dt-empty">这一段还没写进 ${escHtml(b.name)}：点“写入下一段”</div>`;
+  else {
+    const snap = s4.snap[key][sid] || s4.insp[key];
+    if (!snap) body = '<div class="dt-empty">读取中…</div>';
+    else body = `<div class="steps w-${key}">${key === 'hermes' ? wHermes(sid, i, snap) : key === 'mem0' ? wMem0(sid, i, snap) : wGraphiti(sid, i, snap)}</div>`;
+  }
+  el.innerHTML = head + body;
+  if (key === 'graphiti' && written && !(busy && busy.n === i + 1)) drawWriteGraph(el, sid, i);
+}
+
+const callsTxt = st => `${st.llm_calls} 次模型调用` + (st.embed_calls ? ` · ${st.embed_calls} 次向量化` : '');
+const costFoot = (r, extra = '') => r ? `<div class="st-foot">${extra}用时 ${fmtSec(r.ms)} 秒 · ${callsTxt(r.stats)}</div>` : '';
+
+/* Hermes: rows into state.db (no model), then the model edits the two files with the memory tool */
+function wHermes(sid, i, snap) {
+  const r = S4().res.hermes[sid];
+  const rows = (snap.rows || []).filter(x => x.session_id === sid);
+  const s1 = stepHtml(1, '原话直接进 state.db', `
+    <div class="w-big">+${rows.length} 行 <span>不调模型</span></div>
+    ${rows.map(x => `<div class="sm"><b>${x.role === 'user' ? '用户' : '助手'}</b>${rich(trunc(String(x.content).replace(/^\[[^\]]*\]\s*/, ''), 60))}</div>`).join('')}
+    ${r?.parts ? `<div class="st-foot">用时 ${fmtMs(r.parts.sqlite_fts5.ms)} · 0 次模型调用</div>` : ''}`, 'w-db');
+  const calls = (snap.ops || []).filter(o => o.session === sid);
+  const ops = calls.flatMap(c => (c.args?.operations || [c.args || {}]).map(o => ({ ...o, target: c.args?.target, ok: c.result?.success !== false, usage: c.result?.usage })));
+  const opHtml = o => {
+    const f = `<span class="hf-tag">${HFILE[o.target] || o.target || ''}</span>`;
+    if (o.action === 'add') return `<div class="op add"><span class="op-k">新增</span>${f}${rich(o.content || '')}</div>`;
+    if (o.action === 'remove' || (o.action === 'patch' && !o.content)) return `<div class="op del"><span class="op-k">删除</span>${f}<s>${rich(o.old_text || '')}</s></div>`;
+    if (o.action === 'patch') return `<div class="op mod"><span class="op-k">改写</span>${f}<s>${rich(o.old_text || '')}</s><div class="op-new">→ ${rich(o.content || '')}</div></div>`;
+    return `<div class="op">${escHtml(JSON.stringify(o))}</div>`;
+  };
+  const hp = r?.parts?.hermes_file;
+  const s2 = stepHtml(2, '会话结束，模型自己改两份文件 <code>memory</code>', `
+    ${ops.length ? ops.map(opHtml).join('') : '<div class="big-note">模型觉得这段没有要长期记的，文件不变</div>'}
+    ${hp ? `<div class="st-foot">调了 ${calls.length} 次 memory 工具 · 用时 ${fmtSec(hp.ms)} 秒 · ${hp.stats.llm_calls} 次模型调用</div>` : ''}`, 'w-ops');
+  // file sizes right after this session: the last usage reported for each file up to here
+  const upto = (snap.ops || []).filter(o => sIdx(o.session) <= i);
+  const lim = { memory: 2200, user: 1375 };
+  const bars = Object.keys(HFILE).map(t => {
+    const last = upto.filter(o => o.args?.target === t && o.result?.usage).pop();
+    const [u, l] = last ? String(last.result.usage).split('/').map(Number) : [0, lim[t]];
+    const pct = Math.min(100, Math.round(u / l * 100));
+    return `<div class="fbar"><div class="fbar-h"><b>${HFILE[t]}</b><span>${u} / ${l} 字符</span></div><div class="sb big"><i style="width:${pct}%"></i></div></div>`;
   }).join('');
+  const s3 = stepHtml(3, '写完后的两份文件', `${bars}
+    <div class="note plain">下次开新会话，这两份文件整份放进提示。有字数上限：满了，模型得先删旧的才能记新的</div>`, 'w-files');
+  return s1 + ARROW + s2 + ARROW + s3;
+}
+
+/* Mem0 2.x: look up similar memories (dedup reference only), one extraction call, ADD only */
+function wMem0(sid, i, snap) {
+  const r = S4().res.mem0[sid];
+  const mems = snap.memories || [];
+  const before = mems.filter(m => sIdx(m.metadata?.session) < i).length;
+  const res = (snap.add_log || []).filter(x => x.session === sid).flatMap(x => x.result || []);
+  const ev = [...new Set(res.map(x => x.event))];
+  const s1 = stepHtml(1, '先在库里找最像的旧记忆', `
+    <div class="q-card">这段对话</div>
+    <div class="flow-down">↓ text-embedding-v4，按相似度找</div>
+    <div class="vec-card">库里 ${before} 条 → 取最像的 ${Math.min(10, before)} 条</div>
+    <div class="note plain">这些旧记忆只给模型做参考：已经记过的别重复记</div>`, 'w-ref');
+  const s2 = stepHtml(2, `一次模型调用，抽出 ${res.length} 条事实`, `
+    ${res.map(x => `<div class="m-add"><span class="ev ev-${escHtml(String(x.event).toLowerCase())}">${escHtml(x.event)}</span><span>${rich(x.memory || '')}</span></div>`).join('') || '<div class="big-note">没有抽出新事实</div>'}
+    ${costFoot(r)}`, 'w-ext');
+  const dots = mems.filter(m => sIdx(m.metadata?.session) <= i)
+    .sort((a, b) => sIdx(a.metadata?.session) - sIdx(b.metadata?.session))
+    .map(m => `<i class="${m.metadata?.session === sid ? 'new' : ''}" title="${escHtml(m.memory)}"></i>`).join('');
+  const s3 = stepHtml(3, `库里 ${before} → ${before + res.length} 条`, `
+    <div class="mdots">${dots}</div>
+    <div class="note plain">${ev.length === 1 && ev[0] === 'ADD' ? '这一版 Mem0（2.x）写入只做 ADD：不改、不删旧记忆。' : ''}说法前后变了，新旧两条都留在库里，读的时候靠打分排序来挑</div>`, 'w-count');
+  return s1 + ARROW + s2 + ARROW + s3;
+}
+
+/* Graphiti: entities (new vs merged into existing), relation edges (new / seen again / invalidated), graph */
+function gEpisodes(snap) {
+  const m = new Map();
+  for (const e of snap.episode_nodes || []) m.set(e.uuid, sIdx(e.name));
+  return m;
+}
+function gFirsts(snap) {
+  const ep = gEpisodes(snap);
+  const nodeFirst = new Map();
+  for (const mm of snap.mentions || []) {
+    const k = ep.get(mm.source);
+    if (k == null || k < 0) continue;
+    nodeFirst.set(mm.target, Math.min(nodeFirst.get(mm.target) ?? 99, k));
+  }
+  const edgeFirst = new Map();
+  for (const e of snap.edges || []) {
+    const ks = (e.episodes || []).map(u => ep.get(u)).filter(k => k != null && k >= 0);
+    edgeFirst.set(e.uuid, ks.length ? Math.min(...ks) : 99);
+    for (const n of [e.source, e.target]) if (!nodeFirst.has(n) && ks.length) nodeFirst.set(n, Math.min(...ks));
+  }
+  return { ep, nodeFirst, edgeFirst };
+}
+
+function wGraphiti(sid, i, snap) {
+  const s4 = S4();
+  const r = s4.res.graphiti[sid];
+  const { ep, nodeFirst, edgeFirst } = gFirsts(snap);
+  const epU = [...ep.entries()].filter(([, k]) => k === i).map(([u]) => u);
+  const name = new Map((snap.nodes || []).map(n => [n.uuid, n.name]));
+  const mentioned = [...new Set((snap.mentions || []).filter(m => epU.includes(m.source)).map(m => m.target))];
+  const fresh = mentioned.filter(u => nodeFirst.get(u) === i), merged = mentioned.filter(u => nodeFirst.get(u) < i);
+  const s1 = stepHtml(1, `抽出 ${mentioned.length} 个实体，和图里已有的合并`, `
+    <div class="ent-l">新实体 ${fresh.length}</div>
+    <div class="ents">${fresh.map(u => `<span class="ent new">${escHtml(name.get(u) || '?')}</span>`).join('') || '<span class="dim">无</span>'}</div>
+    <div class="ent-l">认出是已有实体，合并 ${merged.length}</div>
+    <div class="ents">${merged.map(u => `<span class="ent old">${escHtml(name.get(u) || '?')}</span>`).join('') || '<span class="dim">无</span>'}</div>`, 'w-ents');
+  const edges = snap.edges || [];
+  const newE = edges.filter(e => edgeFirst.get(e.uuid) === i);
+  const again = edges.filter(e => edgeFirst.get(e.uuid) < i && (e.episodes || []).some(u => epU.includes(u)));
+  // invalidated by this session: compare with the snapshot taken right before it, when we have one
+  const prev = i > 0 ? s4.snap.graphiti[s4.sessions[i - 1].id] : null;
+  const inval = prev ? edges.filter(e => e.invalid_at && (prev.edges || []).some(x => x.uuid === e.uuid && !x.invalid_at)) : [];
+  const row = (e, cls, tag) => `<div class="g-e ${cls}"><span class="op-k">${tag}</span><span class="x">${rich(e.fact || '')}<span class="g-t">${escHtml(humanRel(e.name))} · 生效 ${escHtml(String(e.valid_at || '?').slice(0, 10))}${e.invalid_at ? ' · 失效 ' + escHtml(String(e.invalid_at).slice(0, 10)) : ''}</span></span></div>`;
+  const s2 = stepHtml(2, '抽关系边；和旧边矛盾，就给旧边标失效', `
+    ${newE.map(e => row(e, 'add', '新边')).join('')}
+    ${again.map(e => row(e, 'again', '再次提到')).join('')}
+    ${inval.map(e => row(e, 'del', '失效')).join('')}
+    ${!newE.length && !again.length && !inval.length ? '<div class="big-note">没有新关系</div>' : ''}
+    ${prev && !inval.length ? '<div class="dim w-none">这段没有让旧边失效</div>' : ''}
+    ${costFoot(r)}`, 'w-edges');
+  const s3 = stepHtml(3, `图里的位置 · 现在 ${[...nodeFirst.values()].filter(k => k <= i).length} 个实体`, '<div class="kg-w" data-kg></div>', 'w-graph');
+  return s1 + ARROW + s2 + ARROW + s3;
+}
+
+function drawWriteGraph(el, sid, i) {
+  const host = $('[data-kg]', el);
+  if (!host) return;
+  const s4 = S4();
+  const snap = s4.snap.graphiti[sid] || s4.insp.graphiti;
+  const { ep, nodeFirst, edgeFirst } = gFirsts(snap);
+  const epU = [...ep.entries()].filter(([, k]) => k === i).map(([u]) => u);
+  const nodes = (snap.nodes || []).filter(n => (nodeFirst.get(n.uuid) ?? 99) <= i);
+  const edges = (snap.edges || []).filter(e => (edgeFirst.get(e.uuid) ?? 99) <= i);
+  const freshN = new Set((snap.mentions || []).filter(m => epU.includes(m.source)).map(m => m.target));
+  const freshE = new Set(edges.filter(e => (e.episodes || []).some(u => epU.includes(u))).map(e => e.uuid));
+  const box = host.getBoundingClientRect();
+  const W = Math.round(Math.max(400, box.width) * 1.25), H = Math.round(Math.max(300, box.height) * 1.25);
+  drawKG(host, { nodes, edges }, { W, H, font: 24, fresh: { nodes: freshN, edges: freshE } });
 }
 
 function setButtons() {
@@ -901,89 +1405,34 @@ function nextSession(key) {
 
 async function writeOne(key, session) {
   const s4 = S4();
-  const before = s4.insp[key];
-  const n = s4.sessions.findIndex(s => s.id === session) + 1;
+  const n = sIdx(session) + 1;
   s4.busy[key] = { n, t0: Date.now() };
-  renderCols();
+  delete s4.err[key];
+  const follow = !s4.ss;
+  paintWSum(key);
   renderSessions();
+  if (follow || s4.ss === session) renderWriteDetail();
   let res;
   try {
     res = MOCK_ON ? await mockWrite(key, session) : await api('/api/live/write', { track: 'night-run-live', backend: key, session });
   } catch (err) {
     delete s4.busy[key];
-    s4.blocks[key].unshift({ label: `第 ${n} 段 · 失败`, html: `<div class="wline"><span class="minus">✕</span> ${escHtml(err.message)}</div>`, ts: '' });
-    renderCols();
+    s4.err[key] = `第 ${n} 段写入失败：${err.message}`;
+    paintWSum(key);
     renderSessions();
+    renderWriteDetail();
     return false;
   }
   delete s4.busy[key];
-  const after = res.inspect;
-  s4.insp[key] = after;
+  s4.insp[key] = res.inspect;
+  s4.snap[key][session] = res.inspect;
+  s4.res[key][session] = { ms: res.ms, stats: res.stats, parts: res.parts };
   s4.written[key] = res.written || (s4.written[key] || []).concat(session);
-  s4.blocks[key].unshift({
-    label: `第 ${n} 段 · 用时 ${fmtSec(res.ms)} 秒`,
-    html: diffHtml(key, before, after),
-    ts: '',
-  });
-  renderCols();
+  paintWSum(key);
   renderSessions();
+  if (s4.sel === key && (!s4.ss || s4.ss === session)) renderWriteDetail();
   setButtons();
   return true;
-}
-
-function diffHtml(key, before, after) {
-  const lines = [];
-  if (key === 'sqlite_fts5') {
-    const oldIds = new Set((before?.rows || []).map(r => r.id));
-    const added = (after.rows || []).filter(r => !oldIds.has(r.id));
-    lines.push(`<div class="wline"><span class="plus">+</span> 新增 ${added.length} 行</div>`);
-    added.slice(0, 2).forEach(r => lines.push(`<div class="wline dim">${rich(trunc(r.content, 46))}</div>`));
-  } else if (key === 'hermes_file') {
-    const beforeN = (before?.ops || []).length;
-    const ops = (after.ops || []).slice(beforeN);
-    if (!ops.length) lines.push('<div class="wline dim">无变化</div>');
-    for (const op of ops) {
-      const list = op.args?.operations || [op.args || {}];
-      for (const o of list) {
-        if (o.action === 'add') lines.push(`<div class="wline"><span class="plus">+</span> ${rich(trunc(o.content, 42))}</div>`);
-        else if (o.action === 'patch') lines.push(`<div class="wline"><span class="tilde">~</span> 改写：${rich(trunc(o.content, 42))}</div>`);
-        else if (o.action === 'remove') lines.push(`<div class="wline"><span class="minus">−</span> 删除：${rich(trunc(o.old_text, 42))}</div>`);
-      }
-    }
-  } else if (key === 'mem0') {
-    const oldMap = new Map((before?.memories || []).map(m => [m.id, m.memory]));
-    const newMap = new Map((after.memories || []).map(m => [m.id, m.memory]));
-    const added = (after.memories || []).filter(m => !oldMap.has(m.id));
-    const removed = (before?.memories || []).filter(m => !newMap.has(m.id));
-    const changed = (after.memories || []).filter(m => oldMap.has(m.id) && oldMap.get(m.id) !== m.memory);
-    if (!added.length && !removed.length && !changed.length) lines.push('<div class="wline dim">无变化</div>');
-    if (added.length) {
-      lines.push(`<div class="wline"><span class="plus">+</span> 新增 ${added.length} 条</div>`);
-      added.slice(0, 2).forEach(m => lines.push(`<div class="wline dim">${rich(trunc(m.memory, 46))}</div>`));
-    }
-    if (changed.length) {
-      lines.push(`<div class="wline"><span class="tilde">~</span> 改写 ${changed.length} 条</div>`);
-      changed.slice(0, 1).forEach(m => lines.push(`<div class="wline dim">→ ${rich(trunc(m.memory, 46))}</div>`));
-    }
-    if (removed.length) {
-      lines.push(`<div class="wline"><span class="minus">−</span> 删除 ${removed.length} 条</div>`);
-      removed.slice(0, 1).forEach(m => lines.push(`<div class="wline strike">${rich(trunc(m.memory, 46))}</div>`));
-    }
-  } else if (key === 'graphiti') {
-    const oldU = new Set((before?.edges || []).map(e => e.uuid));
-    const added = (after.edges || []).filter(e => !oldU.has(e.uuid));
-    const inval = (before?.edges || []).filter(e => !e.invalid_at && (after.edges || []).some(x => x.uuid === e.uuid && x.invalid_at));
-    if (!added.length && !inval.length) lines.push('<div class="wline dim">无变化</div>');
-    if (added.length) {
-      lines.push(`<div class="wline"><span class="plus">+</span> 新边 ${added.length} 条</div>`);
-      added.slice(0, 2).forEach(e => lines.push(`<div class="wline dim">${rich(trunc(e.fact, 42))}</div>`));
-    }
-    if (inval.length) {
-      lines.push(`<div class="wline"><span class="minus">✕</span> 失效 ${inval.length} 条</div>`);
-      inval.slice(0, 4).forEach(e => lines.push(`<div class="wline strike">${rich(trunc(e.fact, 120), { rule: RULE_SRC })}</div>`));
-    }
-  }
-  return lines.join('');
 }
 
 function trunc(text, n) {
@@ -1032,11 +1481,8 @@ function bindWriteControls() {
     if (s4.running) return;
     if (!confirm('会清空现场库的全部记忆并重新开始，确定？')) return;
     if (MOCK_ON) {
-      s4.written = Object.fromEntries(BACKENDS.map(b => [b.key, []]));
-      s4.blocks = Object.fromEntries(BACKENDS.map(b => [b.key, []]));
-      s4.insp = {};
-      renderCols();
-      renderSessions();
+      S.s4 = null;
+      await enter4();
       return;
     }
     try {
@@ -1160,53 +1606,89 @@ function applyOp(files, op) {
 
 /* ---------------- 6 · 花多少 ---------------- */
 
-async function enterCost() {
-  window.__liveReady = false;
-  try {
-    if (!S.meta) S.meta = await api('/api/runs/test-20261108/meta');
-    const data = BACKENDS.filter(b => b.key !== 'control').map(b => {
-      const recs = [];
-      for (const tr of ['night-run', 'project-facts']) {
-        for (const r of ((S.meta.backends[b.key] || {}).tracks || {})[tr] || []) recs.push(r);
-      }
-      const times = recs.map(r => r.t_ready_ms || 0);
-      const calls = recs.map(r => r.llm_calls || 0);
-      return {
-        key: b.key, name: b.name,
-        tmin: Math.min(...times), tmax: Math.max(...times),
-        cmin: Math.min(...calls), cmax: Math.max(...calls),
-      };
-    });
-    const LO = Math.log10(0.02), HI = Math.log10(200);
-    const posSec = s => Math.max(0.6, ((Math.log10(Math.max(s, 0.02)) - LO) / (HI - LO)) * 100);
-    const posMs = ms => posSec(ms / 1000);
-    $('#s6-bars').innerHTML = data.map((d, rowIdx) => {
-      const v = d.tmax < 1000 ? `${d.tmin}–${d.tmax} 毫秒` : `${(d.tmin / 1000).toFixed(1)}–${(d.tmax / 1000).toFixed(1)} 秒`;
-      const calls = d.cmin === d.cmax ? `${d.cmin}` : `${d.cmin}–${d.cmax}`;
-      const cls = d.key === 'control' ? 'control' : d.key === 'sqlite_fts5' ? 'sqlite' : d.key === 'hermes_file' ? 'hermes' : d.key === 'mem0' ? 'mem0' : 'graphiti';
-      return `<div class="bar-row">
-        <div class="bar-name">${escHtml(d.name)}</div>
-        <div class="bar-track">
-          ${[0.1, 1, 10, 100].map(t => `<div class="bar-grid" style="left:${posSec(t)}%">${rowIdx === 0 ? `<span>${t < 1 ? '0.1s' : t + 's'}</span>` : ''}</div>`).join('')}
-          <div class="bar ${cls}" style="width:${posMs(d.tmax)}%"></div>
-        </div>
-        <div class="bar-val"><b>${escHtml(v)}</b> · ${calls} 次模型调用</div>
-      </div>`;
-    }).join('');
-    const reads = (S.cost || {})[5] || (S.cost || {})[3];
-    $('#s6-read').innerHTML = reads ? `<div class="rc-title">刚才那次提问，读取花了多少</div>
-      <div class="rc-row">${BACKENDS.map(b => {
-        const c = reads[b.key];
-        if (!c) return '';
-        const how = b.key === 'control' ? '不检索' : b.key === 'hermes_file' ? '不检索，整份加载' : `检索 ${fmtMs(c.read_ms)}`;
-        return `<div class="rc"><div class="rc-name">${escHtml(b.name)}</div><div class="rc-v">${how}</div><div class="rc-v">上下文 <b>${c.chars}</b> 字</div></div>`;
-      }).join('')}</div>` : '';
-    $('#s6-note').textContent = '写入：test-20261108/meta.json，每个后端取两个 track × 两次建库的最小–最大，模型调用次数同区间，条长按对数刻度（0.02–200 秒）。读取：本页刚才的现场提问。';
-    window.__liveReady = true;
-  } catch (err) {
-    $('#s6-bars').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
-    window.__liveReady = true;
+/* ---------------- 写入花多少 · 读取花多少 ---------------- */
+
+const WCOST_HOW = {
+  hermes: '原话入库不调模型；会话结束时 Agent 改两份文件，要调模型',
+  mem0: '每段一次抽取；比对旧记忆、存新记忆都要先变成向量',
+  graphiti: '抽实体 → 合并 → 抽关系 → 判断失效，每一步都调模型',
+};
+const kTok = t => t >= 10000 ? `${Math.round(t / 1000)}k` : t >= 1000 ? `${(t / 1000).toFixed(1)}k` : `${t}`;
+
+async function loadWriteCost() {
+  if (S.wcost) return S.wcost;
+  if (REPLAY) S.wcost = await rpJson('write_cost.json');
+  else {
+    const r = await fetch('/write_cost.json', { cache: 'no-cache' });
+    if (!r.ok) throw new Error(`没有写入记录（HTTP ${r.status}）`);
+    S.wcost = await r.json();
   }
+  return S.wcost;
+}
+
+function storeTxt(key, st) {
+  if (key === 'hermes') return `state.db <b>${st.rows}</b> 行 · 两份文件 <b>${st.file_chars}</b> 字`;
+  if (key === 'mem0') return `<b>${st.memories}</b> 条记忆`;
+  return `<b>${st.nodes}</b> 个实体 · <b>${st.edges}</b> 条关系`;
+}
+
+async function enterWriteCost() {
+  window.__liveReady = false;
+  const host = $('#swc-body');
+  try {
+    const W = await loadWriteCost();
+    const ids = W.sessions.map(x => x.id);
+    const rows = B4.map(b => {
+      const ss = W.systems[b.key].sessions;
+      const sum = k => ids.reduce((a, id) => a + ((ss[id] || {})[k] || 0), 0);
+      const dbMs = ids.reduce((a, id) => a + (((ss[id] || {}).parts || {}).sqlite_fts5?.ms || 0), 0);
+      return { b, ss, ms: sum('ms'), calls: sum('llm_calls'), tok: sum('tokens'),
+               emb: sum('embed_calls'), etok: sum('embed_tokens'), dbMs, store: W.systems[b.key].store };
+    });
+    const max = Math.max(...rows.map(r => r.ms));
+    $('#swc-stamp').textContent = `${W.recorded_at} 的一次真实运行 · 三个系统同时写`;
+    host.innerHTML = `<div class="wc-head"><span></span><span>六段一共用时（每格一段）</span><span>模型调用</span><span>向量化</span><span>写完库里有</span></div>` +
+      rows.map(r => `<div class="wc-row ${r.b.key}">
+        <div class="wc-name"><b>${escHtml(r.b.name)}</b><span>${escHtml(WCOST_HOW[r.b.key])}</span></div>
+        <div class="wc-time"><div class="wc-big">${fmtSec(r.ms)}<small> 秒</small></div>
+          <div class="wc-bar">${ids.map((id, i) => {
+            const ms = (r.ss[id] || {}).ms || 0;
+            return `<div class="wc-seg" style="width:${(ms / max) * 100}%" title="第 ${i + 1} 段 ${fmtSec(ms)} 秒">${ms / max > 0.045 ? `<span>${fmtSec(ms)}</span>` : ''}</div>`;
+          }).join('')}</div>
+          ${r.b.key === 'hermes' ? `<div class="wc-sub">其中原话入库共 ${r.dbMs} ms，其余是改文件</div>` : ''}</div>
+        <div class="wc-n"><div class="wc-big">${r.calls}<small> 次</small></div><div class="wc-sub">${kTok(r.tok)} tokens</div></div>
+        <div class="wc-n"><div class="wc-big">${r.emb}<small> 次</small></div><div class="wc-sub">${r.emb ? kTok(r.etok) + ' tokens' : '不用向量'}</div></div>
+        <div class="wc-store">${storeTxt(r.b.key, r.store)}</div>
+      </div>`).join('');
+    $('#swc-note').textContent = `模型 ${W.model} · 一次运行的结果：用时取决于当时接口的速度，只看量级和花在哪一步。`;
+  } catch (err) {
+    host.innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
+  }
+  window.__liveReady = true;
+}
+
+function enterReadCost() {
+  const host = $('#src-body');
+  const c = (S.cost || {})[5] || {};
+  const done = BACKENDS.filter(b => c[b.key]);
+  const q = done.length ? String(c[done[0].key].prompt || "").split("\n").filter(l => !l.startsWith("[系统时间]")).join(" ").trim() : "";
+  $('#src-q').textContent = q ? `“${q}”` : '';
+  if (!done.length) {
+    host.innerHTML = `<div class="rc-empty">上一页还没问问题。按 ← 回去问一个，再翻过来。</div>`;
+    window.__liveReady = true;
+    return;
+  }
+  const maxChars = Math.max(1, ...done.map(b => c[b.key].chars));
+  const how = (b, x) => b.key === 'control' ? '不找' : b.key === 'hermes' ? '读两份文件（整份）' : b.key === 'mem0' ? '问题变向量，给每条记忆打分' : '关键词 + 向量两路，再融合';
+  const cell = (b, f) => c[b.key] ? f(c[b.key]) : '<span class="dim">还在跑</span>';
+  const row = (label, f, cls = '') => `<div class="rcx-row ${cls}"><div class="rcx-l">${label}</div>${BACKENDS.map(b => `<div class="rcx-c">${cell(b, f(b))}</div>`).join('')}</div>`;
+  host.innerHTML = `<div class="rcx-row rcx-h"><div class="rcx-l"></div>${BACKENDS.map(b => `<div class="rcx-c"><b>${escHtml(b.name)}</b></div>`).join('')}</div>` +
+    row('① 怎么找', b => x => `<div class="rcx-how">${how(b, x)}</div>`) +
+    row('检索用时', b => x => b.key === 'control' ? '<span class="dim">—</span>' : `<span class="rcx-big">${fmtMs(x.read_ms)}</span>${b.key === 'hermes' ? '<div class="rcx-sub">只是读文件</div>' : '<div class="rcx-sub">含 1 次向量化</div>'}`) +
+    row('② 放进上下文', b => x => `<span class="rcx-big">${x.chars}</span> 字<div class="rcx-bar"><i style="width:${x.chars / maxChars * 100}%"></i></div>${b.key === 'hermes' ? '<div class="rcx-sub">每次新会话都整份带上</div>' : b.key === 'control' ? '' : `<div class="rcx-sub">取回 ${x.hits} 条</div>`}`) +
+    row('③ 作答时又去搜', b => x => b.key === 'hermes' ? `<span class="rcx-big">${x.searches}</span> 次 session_search` : '<span class="dim">不能搜</span>') +
+    row('作答', b => x => `<span class="rcx-big">${x.llm_calls}</span> 次模型调用 · <span class="rcx-big">${kTok(x.tokens)}</span> tokens<div class="rcx-sub">用时 ${fmtSec(x.ans_ms)} 秒</div>`);
+  window.__liveReady = true;
 }
 
 /* ---------------- boot ---------------- */
@@ -1241,7 +1723,7 @@ function boot() {
   const n = hashNum();
   const step = parseInt(QS.get('step') || '0', 10);
   S.stepMode = MOCK_ON && step > 0;
-  window.__liveReady = !(AUTO && (n === 3 || n === 5)) && !S.stepMode;
+  window.__liveReady = !(AUTO && (ORDER[n - 1] === 3 || ORDER[n - 1] === 5)) && !S.stepMode;
   show(n);
   if (MOCK_ON && step > 0) prepMockStep(step);
 }
@@ -1250,10 +1732,9 @@ async function prepMockStep(step) {
   if (S.screen !== 4) { window.__liveReady = true; return; }
   for (let i = 0; i < 200 && !(S.s4 && S.s4.loaded); i++) await delay(20);
   if (!S.s4) { window.__liveReady = true; return; }
-  S.s4.written = Object.fromEntries(BACKENDS.map(b => [b.key, []]));
-  S.s4.blocks = Object.fromEntries(BACKENDS.map(b => [b.key, []]));
+  S.s4.written = Object.fromEntries(B4.map(b => [b.key, []]));
   S.s4.insp = {};
-  renderCols();
+  setupWrite();
   renderSessions();
   for (let k = 0; k < step; k++) {
     for (const b of B4) {
