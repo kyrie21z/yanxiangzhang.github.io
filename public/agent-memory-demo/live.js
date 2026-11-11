@@ -83,7 +83,6 @@ function richSentences(text, ev) {
 const S = {
   screen: 1,
   state: null,
-  trace: null,
   meta: null,
   s2: { tab: QS.get('tab') || 'sqlite_fts5', cache: {}, showAll: false },
   ask: {},
@@ -112,7 +111,6 @@ function rpState(R) {
   return st;
 }
 async function replayApi(path, body) {
-  if (path === '/api/runs/test-20261108/trace') return rpJson('trace.json');
   if (path === '/api/runs/test-20261108/meta') return rpJson('meta.json');
   const R = await rpLoad();
   const [p, qs] = path.split('?');
@@ -145,9 +143,10 @@ async function replayApi(path, body) {
 
 async function api(path, body) {
   if (REPLAY) return replayApi(path, body);
-  const opt = body === undefined ? {} : {
+  const hdr = QS.get('token') ? { 'X-Live-Token': QS.get('token') } : {};
+  const opt = body === undefined ? { headers: hdr } : {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: Object.assign({ 'content-type': 'application/json' }, hdr),
     body: JSON.stringify(body),
   };
   const r = await fetch(path, opt);
@@ -191,7 +190,7 @@ addEventListener('resize', fit);
 
 const hashNum = () => {
   const n = parseInt(String(location.hash).replace('#', ''), 10);
-  return n >= 1 && n <= 8 ? n : 1;
+  return n >= 1 && n <= 6 ? n : 1;
 };
 
 function show(n) {
@@ -207,9 +206,7 @@ function enter(n) {
   else if (n === 3) enterAsk(3);
   else if (n === 4) enter4();
   else if (n === 5) enterAsk(5);
-  else if (n === 6) enter6();
-  else if (n === 7) enter7();
-  else if (n === 8) enter8();
+  else if (n === 6) enterCost();
 }
 
 addEventListener('hashchange', () => { const n = hashNum(); if (n !== S.screen) show(n); });
@@ -220,9 +217,14 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') e.target.blur();
     return;
   }
+  if (e.key === 'Escape') {
+    $$('.cols.zoomed').forEach(c => c.classList.remove('zoomed'));
+    $$('.col.zoom').forEach(c => c.classList.remove('zoom'));
+    return;
+  }
   if (e.key === 'ArrowRight' || e.key === ' ') {
     e.preventDefault();
-    if (S.screen < 8) show(S.screen + 1);
+    if (S.screen < 6) show(S.screen + 1);
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     if (S.screen > 1) show(S.screen - 1);
@@ -232,7 +234,7 @@ document.addEventListener('keydown', e => {
   } else if (e.key === 'ArrowUp' && S.screen === 2) {
     e.preventDefault();
     cycleTab(-1);
-  } else if (/^[1-8]$/.test(e.key)) {
+  } else if (/^[1-6]$/.test(e.key)) {
     show(Number(e.key));
   }
 });
@@ -578,12 +580,23 @@ function setupCols(n) {
   const cfg = askCfg(n);
   cfg.cols.innerHTML = BACKENDS.map(b => `
     <div class="col" data-b="${b.key}">
-      <div class="col-head">${escHtml(b.name)}</div>
-      <div class="col-status" data-status>待提问</div>
+      <div class="col-head" title="点击放大 / 还原">${escHtml(b.name)}</div>
+      <div class="col-status" data-status>${escHtml(HOW[b.key].label)}</div>
+      <div class="qline" data-query></div>
       <div class="hits" data-hits></div>
+      <div class="col-cost" data-cost></div>
       <div class="answer" data-answer></div>
     </div>`).join('');
   cfg.cols.addEventListener('click', e => {
+    const head = e.target.closest('.col-head');
+    if (head) {
+      const col = head.closest('.col');
+      const on = !col.classList.contains('zoom');
+      $$('.col', cfg.cols).forEach(c => c.classList.remove('zoom'));
+      col.classList.toggle('zoom', on);
+      cfg.cols.classList.toggle('zoomed', on);
+      return;
+    }
     const hit = e.target.closest('.hit');
     if (hit) hit.classList.toggle('open');
   });
@@ -636,46 +649,64 @@ function colEl(cfg, key) {
 function setStatus(el, html) { el.innerHTML = html; }
 const timerHtml = t0 => `<span class="timer" data-t0="${t0}">0.0 s</span>`;
 
+/* How each column finds its memories: shown on stage instead of a score. */
+const HOW = {
+  control:     { label: '不检索', search: false },
+  sqlite_fts5: { label: '关键词', search: true },
+  hermes_file: { label: '整份加载', search: false },
+  mem0:        { label: '语义+关键词', search: true },
+  graphiti:    { label: '语义+关键词+图', search: true },
+};
+
 async function runColumn(n, cfg, b, prompt, probe) {
   const col = colEl(cfg, b.key);
   const statusEl = $('[data-status]', col);
+  const queryEl = $('[data-query]', col);
   const hitsEl = $('[data-hits]', col);
   const ansEl = $('[data-answer]', col);
+  const costEl = $('[data-cost]', col);
   const ev = probe?.evidence_any || [];
   const stale = probe?.stale_any || [];
+  const how = HOW[b.key];
 
   ansEl.innerHTML = '';
   hitsEl.innerHTML = '';
+  queryEl.innerHTML = '';
+  costEl.innerHTML = '';
+  col.classList.remove('answered');
   hitsEl.classList.remove('none');
   const t0 = Date.now();
-
-  if (b.key === 'control') {
-    setStatus(statusEl, `<span class="ph">不检索</span> · <span class="ph">作答中…</span> ${timerHtml(t0)}`);
-  } else {
-    setStatus(statusEl, `<span class="ph">检索中…</span> ${timerHtml(t0)}`);
-  }
+  setStatus(statusEl, b.key === 'control' ? escHtml(how.label)
+    : `${escHtml(how.label)} · <span class="ph">读取中…</span> ${timerHtml(t0)}`);
 
   let read = { latency_ms: 0, hits: [] };
   try {
     if (b.key !== 'control') {
       const r = MOCK_ON ? await mockRead(cfg.track, b) : await api('/api/live/read', { track: cfg.track, backend: b.key, prompt });
       read = r.read;
-      renderHits(hitsEl, read.hits || [], ev, stale, { rule: n === 5 });
-      if (!(read.hits || []).length) {
-        hitsEl.classList.add('none');
-        hitsEl.innerHTML = '<div class="ans-empty">没有取回条目</div>';
+      const hits = read.hits || [];
+      if (read.backend_query) {
+        queryEl.innerHTML = `<span class="qk">实际查询</span> <code>${escHtml(read.backend_query)}</code>`;
       }
+      renderHits(hitsEl, hits, ev, stale, { rule: n === 5, all: b.key === 'hermes_file' });
+      if (!hits.length) {
+        hitsEl.classList.add('none');
+        hitsEl.innerHTML = '<div class="ans-empty">一条也没取回</div>';
+      }
+      const got = b.key === 'hermes_file' ? `${hits.length} 条全放` : `${hits.length} 条`;
+      const ms = how.search ? ` · ${fmtMs(read.latency_ms)}` : '';
+      setStatus(statusEl, `${escHtml(how.label)}${ms} · ${got}`);
     } else {
       hitsEl.classList.add('none');
-      hitsEl.innerHTML = '<div class="ans-empty">不检索，只作答</div>';
+      hitsEl.innerHTML = '<div class="ans-empty">什么也不放，直接作答</div>';
     }
   } catch (err) {
-    setStatus(statusEl, `<span class="err">检索失败：${escHtml(err.message)}</span>`);
+    setStatus(statusEl, `<span class="err">读取失败：${escHtml(err.message)}</span>`);
     return;
   }
 
   const t1 = Date.now();
-  setStatus(statusEl, `${b.key === 'control' ? '<span class="ph">不检索</span> · ' : ''}<span class="ph">作答中…</span> ${timerHtml(t1)}`);
+  costEl.innerHTML = `<span class="ph">作答中…</span> ${timerHtml(t1)}`;
 
   try {
     const r = MOCK_ON ? await mockAnswer(cfg.track, b) : await api('/api/live/answer', { track: cfg.track, backend: b.key, prompt, hits: read.hits || [] });
@@ -684,22 +715,16 @@ async function runColumn(n, cfg, b, prompt, probe) {
     const tools = (ans.tool_calls || []).length
       ? `<div class="tools">${ans.tool_calls.map(t => `<span class="tool">调用了 ${escHtml(t.name)}</span>`).join('')}</div>`
       : '';
-    if (n === 5) {
-      const ok = matchesRule(ans.answer || '', ev);
-      const quote = ok ? firstRuleSentence(ans.answer || '', ev) : '';
-      ansEl.innerHTML = `<div class="verdict ${ok ? 'hit' : 'miss'}">${ok ? '✓ 提到了“超预算 20 分钟内直接跑”' : '✗ 没提到这条规则'}</div>`
-        + tools
-        + (quote ? `<div class="quote"><mark class="ev sent">${rich(quote)}</mark></div>` : '')
-        + `<div class="ans-text small">${richSentences(ans.answer || '', ev)}</div>`;
-    } else {
-      ansEl.innerHTML = tools + `<div class="ans-text">${rich(ans.answer || '', { ev, stale })}</div>`;
-    }
-    const parts = [];
-    if (b.key !== 'control') parts.push(`检索 ${fmtMs(read.latency_ms)}`);
-    parts.push(`作答 ${fmtMs(ans.latency_ms)}`);
-    setStatus(statusEl, `<span class="ok">${parts.join(' · ')}</span>`);
+    const body = n === 5 ? richSentences(ans.answer || '', ev) : rich(ans.answer || '', { ev, stale });
+    ansEl.innerHTML = tools + `<div class="ans-text">${body}</div>`;
+    const chars = r.inject?.chars ?? 0;
+    costEl.innerHTML = `上下文 <b>${chars}</b> 字 · 作答 ${fmtMs(ans.latency_ms)}`;
+    col.classList.add('answered');
+    S.cost = S.cost || {};
+    S.cost[n] = S.cost[n] || {};
+    S.cost[n][b.key] = { read_ms: how.search ? read.latency_ms : null, hits: (read.hits || []).length, chars };
   } catch (err) {
-    setStatus(statusEl, `<span class="err">作答失败：${escHtml(err.message)}</span>`);
+    costEl.innerHTML = `<span class="err">作答失败：${escHtml(err.message)}</span>`;
   }
 }
 
@@ -707,15 +732,9 @@ function cleanHit(text) {
   return String(text || '').replace(/^\s*\[[^\]]*·[^\]]*\]\s*/, '');
 }
 
-function firstRuleSentence(text, ev) {
-  const chunks = String(text).replace(/\*\*/g, '').split('\n')
-    .flatMap(line => line.match(/[^。！？!?]+[。！？!?]?/g) || []);
-  return chunks.map(s => s.trim()).find(s => s && matchesRule(s, ev)) || '';
-}
-
 function renderHits(el, hits, ev, stale, opt = {}) {
   el.classList.remove('none');
-  const items = (hits || []).slice(0, 5).map((h, i) => {
+  const items = (hits || []).slice(0, opt.all ? hits.length : 5).map((h, i) => {
     const text = cleanHit(h.text);
     const low = text.toLowerCase();
     const evHit = (ev || []).some(t => low.includes(String(t).toLowerCase()));
@@ -723,7 +742,8 @@ function renderHits(el, hits, ev, stale, opt = {}) {
     const ruleHit = opt.rule ? matchesRule(text, ev) : false;
     return { rank: h.rank != null ? h.rank : i + 1, text, full: evHit || stHit || ruleHit, rule: ruleHit };
   });
-  const ordered = items.filter(x => x.full).concat(items.filter(x => !x.full));
+  // Keep the search ranking; only the whole-file column (no ranking) floats highlighted entries up.
+  const ordered = opt.all ? items.filter(x => x.full).concat(items.filter(x => !x.full)) : items;
   el.innerHTML = ordered.map(x => `
     <div class="hit${x.full ? ' full' : ''}${x.rule ? ' rule' : ''}" title="点击展开/收起">
       <span class="r">${x.rank}</span>
@@ -960,7 +980,7 @@ function diffHtml(key, before, after) {
     }
     if (inval.length) {
       lines.push(`<div class="wline"><span class="minus">✕</span> 失效 ${inval.length} 条</div>`);
-      inval.slice(0, 2).forEach(e => lines.push(`<div class="wline strike">${rich(trunc(e.fact, 42))}</div>`));
+      inval.slice(0, 4).forEach(e => lines.push(`<div class="wline strike">${rich(trunc(e.fact, 120), { rule: RULE_SRC })}</div>`));
     }
   }
   return lines.join('');
@@ -1138,103 +1158,9 @@ function applyOp(files, op) {
   }
 }
 
-/* ---------------- 6 / 7 · 统计 ---------------- */
+/* ---------------- 6 · 花多少 ---------------- */
 
-const PRIORITY = ['not_stored', 'not_retrieved', 'invalidated', 'not_injected', 'not_used', 'no_action', 'not_ready', 'unknown'];
-const STAGE_CLASS = {
-  not_stored: 'red', not_retrieved: 'orange', invalidated: 'orange',
-  not_injected: 'purple', not_used: 'purple', no_action: 'purple',
-};
-
-async function ensureTrace() {
-  if (S.trace) return S.trace;
-  const r = await api('/api/runs/test-20261108/trace');
-  S.trace = r.rows || [];
-  return S.trace;
-}
-
-function cellData(track, probe, backend) {
-  const allowed = new Set(BACKENDS.map(b => b.key));
-  const rows = (S.trace || []).filter(r => r.mode === 'settled' && allowed.has(r.backend) && r.track === track && r.probe === probe && r.backend === backend);
-  const pass = rows.filter(r => r.outcome === 'pass').length;
-  const lucky = rows.filter(r => r.outcome === 'pass' && r.evidence_in_context === false && r.has_evidence && r.probe_control_expected !== 'pass').length;
-  const stages = {};
-  rows.filter(r => r.outcome !== 'pass').forEach(r => {
-    const s = r.fail_stage || 'unknown';
-    stages[s] = (stages[s] || 0) + 1;
-  });
-  let dom = null, best = 0;
-  for (const s of PRIORITY) {
-    if ((stages[s] || 0) > best) { best = stages[s]; dom = s; }
-  }
-  let cls;
-  if (!rows.length) cls = 'gray';
-  else if (pass === rows.length) cls = 'pass';
-  else cls = STAGE_CLASS[dom] || 'gray';
-  return { pass, total: rows.length, lucky, cls, stages };
-}
-
-function renderStatsTable(el, cols) {
-  const head = `<tr><th class="backend-h">后端</th>${cols.map(c => `<th>${escHtml(c.label)}<span class="sub">${escHtml(c.sub || '')}</span>${c.note ? `<span class="th-note">${escHtml(c.note)}</span>` : ''}</th>`).join('')}</tr>`;
-  const body = BACKENDS.map(b => `<tr>
-    <td class="rowh">${escHtml(b.name)}</td>
-    ${cols.map(c => {
-      const d = cellData(c.track, c.probe, b.key);
-      const contrast = c.contrast ? ' contrast' : '';
-      const note = d.lucky ? `其中 ${d.lucky} 次上下文里没有这条` : '';
-      return `<td><div class="cell ${d.cls}${contrast}"><div class="num">${d.pass}</div><div class="note">${escHtml(note)}</div></div></td>`;
-    }).join('')}
-  </tr>`).join('');
-  el.innerHTML = `<table class="stats"><colgroup><col style="width:250px">${cols.map(() => '<col>').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table>`;
-}
-
-async function enter6() {
-  window.__liveReady = false;
-  try {
-    await getState();
-    await ensureTrace();
-    renderStatsTable($('#s6-table'), [
-      { track: 'night-run', probe: 'T1', label: 'T1', sub: '纠正（中文问）' },
-      { track: 'night-run', probe: 'T1b', label: 'T1b', sub: '纠正（英文问）' },
-      { track: 'night-run', probe: 'T1n', label: 'T1n', sub: '超 3.5 小时（对照）', note: '没有记忆也该对', contrast: true },
-    ]);
-    $('#s6-legend').innerHTML = `
-      <span><i class="lg-pass"></i>通过</span>
-      <span><i class="lg-red"></i>没存下</span>
-      <span><i class="lg-orange"></i>没找到</span>
-      <span><i class="lg-purple"></i>没用上</span>
-      <span class="right">格子 = 10 次里通过的次数 · 底色 = 失败主导阶段</span>`;
-    window.__liveReady = true;
-  } catch (err) {
-    $('#s6-table').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
-    window.__liveReady = true;
-  }
-}
-
-async function enter7() {
-  window.__liveReady = false;
-  try {
-    await getState();
-    await ensureTrace();
-    renderStatsTable($('#s7-table'), [
-      { track: 'night-run', probe: 'T2a', label: 'T2a', sub: '10-22 当晚（应请示）', note: '对照：没有记忆也该对' },
-      { track: 'night-run', probe: 'T2b', label: 'T2b', sub: '一周后（应开跑）' },
-      { track: 'night-run', probe: 'T1s', label: 'T1s', sub: 'arm-control（应请示）', note: '对照：没有记忆也该对' },
-      { track: 'project-facts', probe: 'T3', label: 'T3', sub: '难例比例 35%' },
-      { track: 'project-facts', probe: 'T4', label: 'T4', sub: '两跳：找谁' },
-      { track: 'project-facts', probe: 'T5', label: 'T5', sub: '没结果，别编 · 自动判分' },
-    ]);
-    $('#s7-note').innerHTML = 'T5 列脚注：<b>人工复核：判为编造的回答均为正确拒答，复核后全部 10/10。</b>';
-    window.__liveReady = true;
-  } catch (err) {
-    $('#s7-table').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
-    window.__liveReady = true;
-  }
-}
-
-/* ---------------- 8 · 代价 ---------------- */
-
-async function enter8() {
+async function enterCost() {
   window.__liveReady = false;
   try {
     if (!S.meta) S.meta = await api('/api/runs/test-20261108/meta');
@@ -1254,7 +1180,7 @@ async function enter8() {
     const LO = Math.log10(0.02), HI = Math.log10(200);
     const posSec = s => Math.max(0.6, ((Math.log10(Math.max(s, 0.02)) - LO) / (HI - LO)) * 100);
     const posMs = ms => posSec(ms / 1000);
-    $('#s8-bars').innerHTML = data.map((d, rowIdx) => {
+    $('#s6-bars').innerHTML = data.map((d, rowIdx) => {
       const v = d.tmax < 1000 ? `${d.tmin}–${d.tmax} 毫秒` : `${(d.tmin / 1000).toFixed(1)}–${(d.tmax / 1000).toFixed(1)} 秒`;
       const calls = d.cmin === d.cmax ? `${d.cmin}` : `${d.cmin}–${d.cmax}`;
       const cls = d.key === 'control' ? 'control' : d.key === 'sqlite_fts5' ? 'sqlite' : d.key === 'hermes_file' ? 'hermes' : d.key === 'mem0' ? 'mem0' : 'graphiti';
@@ -1267,10 +1193,18 @@ async function enter8() {
         <div class="bar-val"><b>${escHtml(v)}</b> · ${calls} 次模型调用</div>
       </div>`;
     }).join('');
-    $('#s8-note').textContent = '数据：test-20261108/meta.json，每个后端取两个 track × 两次建库的最小–最大；模型调用次数同区间；条长按对数刻度（0.02–200 秒）。';
+    const reads = (S.cost || {})[5] || (S.cost || {})[3];
+    $('#s6-read').innerHTML = reads ? `<div class="rc-title">刚才那次提问，读取花了多少</div>
+      <div class="rc-row">${BACKENDS.map(b => {
+        const c = reads[b.key];
+        if (!c) return '';
+        const how = b.key === 'control' ? '不检索' : b.key === 'hermes_file' ? '不检索，整份加载' : `检索 ${fmtMs(c.read_ms)}`;
+        return `<div class="rc"><div class="rc-name">${escHtml(b.name)}</div><div class="rc-v">${how}</div><div class="rc-v">上下文 <b>${c.chars}</b> 字</div></div>`;
+      }).join('')}</div>` : '';
+    $('#s6-note').textContent = '写入：test-20261108/meta.json，每个后端取两个 track × 两次建库的最小–最大，模型调用次数同区间，条长按对数刻度（0.02–200 秒）。读取：本页刚才的现场提问。';
     window.__liveReady = true;
   } catch (err) {
-    $('#s8-bars').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
+    $('#s6-bars').innerHTML = `<div class="loading">读取失败：${escHtml(err.message)}</div>`;
     window.__liveReady = true;
   }
 }

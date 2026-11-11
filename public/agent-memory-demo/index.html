@@ -14,14 +14,15 @@
     <div class="s1-wrap">
       <div class="kicker">记忆系统 · 课堂现场</div>
       <h1 class="s1-title">同一个 Agent，同一个模型，<br>只换记忆</h1>
-      <div class="s1-sub">Agent = Pi　·　模型 qwen3.8-flash　·　每次取回前 5 条放进系统提示</div>
+      <div class="s1-sub">看清每个系统：怎么存　·　怎么找　·　花多少</div>
+      <div class="s1-sub2">Agent = Pi　·　模型 qwen3.8-flash　·　新会话开始时取回记忆，放进系统提示</div>
       <div class="s1-cols" id="s1-cols"></div>
     </div>
   </section>
 
   <section class="screen" id="s2">
     <header class="head">
-      <h1>第一幕 · 存储</h1>
+      <h1>怎么存 · 同样五句话，四种存法</h1>
       <div class="stamp" id="s2-stamp"></div>
     </header>
     <div class="mem-cards" id="s2-cards"></div>
@@ -31,6 +32,7 @@
 
   <section class="screen" id="s3">
     <div class="ask-head">
+      <div class="act-chip">怎么找</div>
       <div class="now-chip" id="s3-now">现在：2026-11-08 10:00</div>
       <input id="s3-input" class="ask-input" spellcheck="false" autocomplete="off"
              value="昨天的派对马斯克来了吗？">
@@ -41,7 +43,7 @@
 
   <section class="screen" id="s4">
     <header class="head">
-      <h1>第三幕 · 写入</h1>
+      <h1>怎么写 · 六段对话依次交给每个系统</h1>
       <div class="actions">
         <button id="s4-reset" class="btn ghost">清空，重新开始</button>
         <button id="s4-next" class="btn">写入下一段</button>
@@ -57,9 +59,10 @@
 
   <section class="screen" id="s5">
     <div class="ask-head">
+      <div class="act-chip">新会话</div>
       <div class="now-chip" id="s5-now">现在：2026-11-02 23:30</div>
       <input id="s5-input" class="ask-input" spellcheck="false" autocomplete="off"
-             value="我现在要去睡觉了，我需要你帮我跑个实验，你需要注意什么？">
+             value="我睡着以后，烟测超预算了怎么办？">
       <button id="s5-btn" class="ask-btn">问</button>
     </div>
     <div class="cols" id="s5-cols"></div>
@@ -67,33 +70,16 @@
 
   <section class="screen" id="s6">
     <header class="head">
-      <h1 id="s6-title">现场只跑了一次。正式测试：每格 10 次</h1>
-      <div class="stamp">test-20261108 · settled · 每格 10 次</div>
-    </header>
-    <div class="table-wrap" id="s6-table"></div>
-    <div class="legend" id="s6-legend"></div>
-  </section>
-
-  <section class="screen" id="s7">
-    <header class="head">
-      <h1>同一批测试：过期、对照和难例</h1>
-      <div class="stamp">test-20261108 · settled · 每格 10 次</div>
-    </header>
-    <div class="table-wrap" id="s7-table"></div>
-    <div class="footnote" id="s7-note"></div>
-  </section>
-
-  <section class="screen" id="s8">
-    <header class="head">
-      <h1>代价：把记忆建起来要多久</h1>
+      <h1>花多少 · 写入和读取</h1>
       <div class="stamp">test-20261108 · 两个 track × 两次建库 · 取最小–最大 · 条长为对数刻度</div>
     </header>
-    <div class="cost" id="s8-bars"></div>
-    <div class="s8-line">写得慢，不等于找得准</div>
-    <div class="s8-note" id="s8-note"></div>
+    <div class="cost" id="s6-bars"></div>
+    <div class="read-cost" id="s6-read"></div>
+    <div class="s8-line">存得越细，写入越慢、调用越多</div>
+    <div class="s8-note" id="s6-note"></div>
   </section>
 
-  <div id="pager"><span id="pager-num">1</span><span class="pager-sep">/</span><span class="pager-all">8</span></div>
+  <div id="pager"><span id="pager-num">1</span><span class="pager-sep">/</span><span class="pager-all">6</span></div>
 </div>
 <script>window.MEMORY_REPLAY = { base: "data/" };</script>
 <script src="live.js"></script>
