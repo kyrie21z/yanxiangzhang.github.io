@@ -45,13 +45,54 @@ function deepestExistingRealPath(targetPath) {
 	return trailing.length > 0 ? join(realBase, ...trailing) : realBase;
 }
 
+function lstatIfExists(filepath) {
+	try {
+		return lstatSync(filepath);
+	} catch (error) {
+		if (error?.code === 'ENOENT') return null;
+		throw error;
+	}
+}
+
+function assertNoSymlinksFromRoot(rootRealPath, targetPath, label) {
+	const resolvedTarget = resolve(targetPath);
+	const rel = relative(rootRealPath, resolvedTarget);
+	if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+		throw new Error(`Refusing ${label} outside root (${rootRealPath}): ${targetPath}`);
+	}
+	if (!rel) return;
+
+	let current = rootRealPath;
+	for (const segment of rel.split(sep).filter(Boolean)) {
+		current = join(current, segment);
+		const stat = lstatIfExists(current);
+		if (!stat) break;
+		if (stat.isSymbolicLink()) {
+			throw new Error(`Refusing symlink at ${label}: ${current}`);
+		}
+	}
+}
+
 function assertPathWithinRoot(rootRealPath, targetPath, { strict = false, label = 'path' } = {}) {
 	const resolvedTarget = resolve(targetPath);
+	if (!isWithinDirectory(rootRealPath, resolvedTarget, { strict })) {
+		throw new Error(`Refusing ${label} outside root (${rootRealPath}): ${targetPath}`);
+	}
+	assertNoSymlinksFromRoot(rootRealPath, resolvedTarget, label);
 	const realTarget = deepestExistingRealPath(resolvedTarget);
 	if (!isWithinDirectory(rootRealPath, realTarget, { strict })) {
 		throw new Error(`Refusing ${label} outside root (${rootRealPath}): ${targetPath}`);
 	}
 	return realTarget;
+}
+
+function assertSafeManifestPath(manifestPath) {
+	const resolved = resolve(manifestPath);
+	const stat = lstatIfExists(resolved);
+	if (stat?.isSymbolicLink()) {
+		throw new Error(`Refusing symlinked manifest path: ${manifestPath}`);
+	}
+	return resolved;
 }
 
 function assertExistingFileWithinRoot(rootRealPath, targetPath, label) {
@@ -185,6 +226,7 @@ function parseYamlScalar(rawValue) {
 		return result;
 	}
 
+	if (trimmed.startsWith('#')) return '';
 	return trimmed.replace(/\s+#.*$/, '').trim();
 }
 
@@ -388,11 +430,37 @@ function validateManagedCategories(blogRealDir, managedCategories) {
 	return validated;
 }
 
+function buildOwnedFileMap(manifest, blogRealDir) {
+	const owned = new Map();
+	if (!manifest?.files) return owned;
+
+	for (const [rawKey, hash] of Object.entries(manifest.files)) {
+		if (typeof hash !== 'string' || !hash) continue;
+		if (isAbsolute(rawKey)) {
+			const resolvedKey = resolve(rawKey);
+			if (isWithinDirectory(blogRealDir, resolvedKey, { strict: true })) {
+				owned.set(toPosixPath(relative(blogRealDir, resolvedKey)), hash);
+			}
+		} else {
+			owned.set(rawKey.replace(/\\/g, '/'), hash);
+		}
+	}
+	return owned;
+}
+
+function isOwnedHashUnmodified(realFile, expectedHash) {
+	if (/^[0-9a-f]{64}$/i.test(expectedHash)) {
+		return sha256File(realFile) === expectedHash;
+	}
+	// Legacy manifests recorded source MD5 (32-hex) rather than rendered output SHA-256.
+	return /^[0-9a-f]{32}$/i.test(expectedHash);
+}
+
 function cleanScopedCategories({
 	blogRealDir,
 	validatedManagedCategories,
 	publishedKeys,
-	ownedKeys,
+	ownedFiles,
 	dryRun,
 	log,
 }) {
@@ -414,7 +482,8 @@ function cleanScopedCategories({
 				if (!isWithinDirectory(rootRealDir, realFile, { strict: true })) continue;
 				const relKey = toPosixPath(relative(blogRealDir, realFile));
 				if (publishedKeys.has(relKey)) continue;
-				if (ownedKeys && !ownedKeys.has(relKey)) continue;
+				const expectedHash = ownedFiles.get(relKey);
+				if (!expectedHash || !isOwnedHashUnmodified(realFile, expectedHash)) continue;
 
 				if (!dryRun) unlinkSync(realFile);
 				log(`  [cleaned] ${relKey}`);
@@ -538,11 +607,13 @@ export function publishObsidianNotes(options) {
 	const vaultRealDir = realpathSync(vaultDir);
 	const blogRealDir = deepestExistingRealPath(blogDir);
 	const assetsRealDir = deepestExistingRealPath(assetsDir);
+	const safeManifestPath = manifestPath ? assertSafeManifestPath(manifestPath) : null;
 
 	// Validate all managed cleanup roots upfront before touching disk.
 	const validatedManagedCategories = validateManagedCategories(blogRealDir, managedCategories);
 
-	const manifest = manifestPath ? loadManifest(manifestPath) : null;
+	const manifest = safeManifestPath ? loadManifest(safeManifestPath) : null;
+	const ownedFiles = buildOwnedFileMap(manifest, blogRealDir);
 	const nextManifest = { files: {}, images: {} };
 
 	const collected =
@@ -561,6 +632,7 @@ export function publishObsidianNotes(options) {
 	// Phase 1: Plan & validate every output note and image before mutating disk.
 	const plannedNotes = [];
 	const plannedImages = new Map();
+	const plannedImageDestPaths = new Map();
 	const missingImages = new Set();
 
 	for (const item of collected.items) {
@@ -590,13 +662,21 @@ export function publishObsidianNotes(options) {
 					strict: true,
 					label: 'output image',
 				});
-				const existing = plannedImages.get(sanitized);
-				if (existing && existing.sourcePath !== resolvedSource) {
+				const existingByName = plannedImages.get(sanitized);
+				if (existingByName && existingByName.sourcePath !== resolvedSource) {
 					throw new Error(
-						`Image filename collision for "${sanitized}": "${existing.cleanName}" and "${cleanName}"`,
+						`Image filename collision for "${sanitized}": "${existingByName.cleanName}" and "${cleanName}"`,
 					);
 				}
-				plannedImages.set(sanitized, { cleanName, sanitized, sourcePath: resolvedSource, destPath });
+				const existingByDest = plannedImageDestPaths.get(destPath);
+				if (existingByDest && existingByDest.sourcePath !== resolvedSource) {
+					throw new Error(
+						`Image destination collision for "${destPath}": "${existingByDest.cleanName}" and "${cleanName}"`,
+					);
+				}
+				const record = { cleanName, sanitized, sourcePath: resolvedSource, destPath };
+				plannedImages.set(sanitized, record);
+				plannedImageDestPaths.set(destPath, record);
 			},
 		});
 
@@ -620,8 +700,7 @@ export function publishObsidianNotes(options) {
 		nextManifest.files[plan.relKey] = plan.outputHash;
 
 		if (
-			manifest &&
-			manifest.files[plan.relKey] === plan.outputHash &&
+			ownedFiles.get(plan.relKey) === plan.outputHash &&
 			existsSync(plan.outPath) &&
 			sha256File(plan.outPath) === plan.outputHash
 		) {
@@ -658,18 +737,17 @@ export function publishObsidianNotes(options) {
 		copiedImages++;
 	}
 
-	const ownedKeys = manifest ? new Set(Object.keys(manifest.files)) : new Set();
 	const cleaned = cleanScopedCategories({
 		blogRealDir,
 		validatedManagedCategories,
 		publishedKeys,
-		ownedKeys,
+		ownedFiles,
 		dryRun,
 		log: logger,
 	});
 
-	if (manifestPath && !dryRun && publishedKeys.size > 0) {
-		writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');
+	if (safeManifestPath && !dryRun && publishedKeys.size > 0) {
+		writeFileSync(safeManifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');
 	}
 
 	return {

@@ -286,4 +286,140 @@ describe('publishObsidianNotes', () => {
 			fx.cleanup();
 		}
 	});
+
+	it('blocks dangling output symlinks, symlinked manifests, symlinked image targets, and comment-only YAML values', () => {
+		const fx = createFixtureWorkspace();
+		try {
+			const outsideDir = join(fx.root, 'outside');
+			mkdirSync(outsideDir, { recursive: true });
+			mkdirSync(join(fx.blogDir, 'Personal-Insights'), { recursive: true });
+
+			// 1. Dangling output symlink pointing outside blogDir
+			symlinkSync(join(outsideDir, 'created-outside.md'), join(fx.blogDir, 'Personal-Insights', 'Note.md'));
+			writeFileSync(
+				join(fx.vaultDir, 'Note.md'),
+				'---\ntitle: # no explicit title\n---\nSubstantive content longer than eighty characters to ensure collection succeeds cleanly.',
+			);
+
+			assert.throws(
+				() =>
+					publishObsidianNotes({
+						mode: 'root-graph',
+						vaultDir: fx.vaultDir,
+						blogDir: fx.blogDir,
+						assetsDir: fx.assetsDir,
+						rootNote: 'Note',
+						category: 'Personal-Insights',
+					}),
+				/symlink/i,
+			);
+			assert.equal(existsSync(join(outsideDir, 'created-outside.md')), false);
+
+			// Remove dangling symlink and verify comment-only YAML title falls back to note name
+			rmSync(join(fx.blogDir, 'Personal-Insights', 'Note.md'));
+			publishObsidianNotes({
+				mode: 'root-graph',
+				vaultDir: fx.vaultDir,
+				blogDir: fx.blogDir,
+				assetsDir: fx.assetsDir,
+				rootNote: 'Note',
+				category: 'Personal-Insights',
+			});
+			assert.match(
+				readFileSync(join(fx.blogDir, 'Personal-Insights', 'Note.md'), 'utf8'),
+				/title: "Note"/,
+			);
+
+			// 2. Symlinked manifest path refused
+			const symlinkManifest = join(fx.root, 'manifest-link.json');
+			symlinkSync(join(outsideDir, 'manifest.json'), symlinkManifest);
+			assert.throws(
+				() =>
+					publishObsidianNotes({
+						mode: 'root-graph',
+						vaultDir: fx.vaultDir,
+						blogDir: fx.blogDir,
+						assetsDir: fx.assetsDir,
+						manifestPath: symlinkManifest,
+						rootNote: 'Note',
+						category: 'Personal-Insights',
+					}),
+				/symlinked manifest/i,
+			);
+			assert.equal(existsSync(join(outsideDir, 'manifest.json')), false);
+
+			// 3. Symlinked image destination inside assetsDir refused (prevents silent overwrite)
+			writeFileSync(join(fx.vaultDir, 'images', 'one.png'), 'one-bytes');
+			writeFileSync(join(fx.vaultDir, 'images', 'two.png'), 'two-bytes');
+			writeFileSync(join(fx.assetsDir, 'one.png'), 'old-one');
+			symlinkSync(join(fx.assetsDir, 'one.png'), join(fx.assetsDir, 'two.png'));
+			writeFileSync(
+				join(fx.vaultDir, 'Images.md'),
+				'Using ![[one.png]] and ![[two.png]] with enough text to test image symlink refusal.',
+			);
+			assert.throws(
+				() =>
+					publishObsidianNotes({
+						mode: 'root-graph',
+						vaultDir: fx.vaultDir,
+						blogDir: fx.blogDir,
+						assetsDir: fx.assetsDir,
+						rootNote: 'Images',
+						category: 'Personal-Insights',
+					}),
+				/symlink/i,
+			);
+		} finally {
+			fx.cleanup();
+		}
+	});
+
+	it('preserves hand-edited replacement files during cleanup while cleaning unmodified legacy-manifest files', () => {
+		const fx = createFixtureWorkspace();
+		try {
+			const manifestPath = join(fx.root, '.publish-manifest.json');
+			writeFileSync(
+				join(fx.vaultDir, 'Keep.md'),
+				'Keep note with enough substantive text to remain published across sync iterations cleanly.',
+			);
+			writeFileSync(
+				join(fx.vaultDir, 'Replaced.md'),
+				'Originally synced note with enough text to be published first and later replaced by hand.',
+			);
+
+			const baseOptions = {
+				mode: 'category-map',
+				vaultDir: fx.vaultDir,
+				blogDir: fx.blogDir,
+				assetsDir: fx.assetsDir,
+				manifestPath,
+				resolveCategory: (name) =>
+					name === 'Keep.md' || name === 'Replaced.md' ? 'Personal-Insights' : null,
+				managedCategories: ['Personal-Insights'],
+			};
+
+			publishObsidianNotes(baseOptions);
+
+			// Replace synced output with hand-authored content
+			const replacedOut = join(fx.blogDir, 'Personal-Insights', 'Replaced.md');
+			writeFileSync(replacedOut, '---\ntitle: "Hand Edited"\n---\nMy manual rewrite.\n');
+
+			// Also inject a legacy absolute-path MD5 entry pointing to an old synced file
+			const legacyOut = join(fx.blogDir, 'Personal-Insights', 'Legacy.md');
+			writeFileSync(legacyOut, '---\ntitle: "Legacy"\n---\nOld synced note.\n');
+			const savedManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+			savedManifest.files[legacyOut] = '0123456789abcdef0123456789abcdef';
+			writeFileSync(manifestPath, JSON.stringify(savedManifest, null, 2));
+
+			// Remove Replaced.md from vault
+			rmSync(join(fx.vaultDir, 'Replaced.md'));
+			const after = publishObsidianNotes(baseOptions);
+
+			assert.equal(after.cleaned, 1);
+			assert.equal(existsSync(replacedOut), true);
+			assert.equal(existsSync(legacyOut), false);
+		} finally {
+			fx.cleanup();
+		}
+	});
 });
