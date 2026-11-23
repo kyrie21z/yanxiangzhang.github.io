@@ -1,41 +1,13 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseHead from '../../components/BaseHead.astro';
 import Footer from '../../components/Footer.astro';
 import Header from '../../components/Header.astro';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../../consts';
+import { loadNoteCatalog } from '../../lib/blog-collection';
 
-const posts = await getCollection('blog');
-
-// 按一级目录分组，统计总文章数
-const categories = new Map<string, number>();
-posts.forEach((post) => {
-	const top = post.id.split('/')[0];
-	categories.set(top, (categories.get(top) || 0) + 1);
-});
-// 排序：按名称
-const sortedCategories = Array.from(categories.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-
-// 构建搜索索引数据（展示完整分类路径）
-const allPosts = posts
-	.sort(
-		(a, b) =>
-			Number(b.data.pinned) - Number(a.data.pinned) ||
-			b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
-	)
-	.map((post) => {
-		const parts = post.id.split('/');
-		// 去掉最后的文件名，拼接成分类路径
-		const catPath = parts.slice(0, -1).join(' / ');
-		return {
-			title: post.data.title,
-			description: post.data.description || '',
-			url: `/blog/${post.id}/`,
-			date: post.data.pubDate.toISOString(),
-			category: catPath,
-			pinned: post.data.pinned,
-		};
-	});
+const catalog = await loadNoteCatalog();
+const sortedCategories = catalog.topCategories();
+const allPosts = catalog.searchIndex();
 ---
 
 <!doctype html>
@@ -214,11 +186,11 @@ const allPosts = posts
 			<section id="category-section">
 				<ul class="category-list">
 					{
-						sortedCategories.map(([category, count]) => (
+						sortedCategories.map((category) => (
 							<li class="category-item">
-								<a class="category-link" href={`/blog/${category}/`}>
-									<h2 class="category-name">{category}</h2>
-									<span class="category-count">{count} posts</span>
+								<a class="category-link" href={category.url}>
+									<h2 class="category-name">{category.label}</h2>
+									<span class="category-count">{category.count} posts</span>
 								</a>
 							</li>
 						))

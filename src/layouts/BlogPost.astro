@@ -1,15 +1,18 @@
 ---
 import { Image } from 'astro:assets';
-import { getCollection, type CollectionEntry } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 import type { MarkdownHeading } from 'astro';
 import BaseHead from '../components/BaseHead.astro';
 import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
+import type { BlogEntry } from '../lib/blog-collection';
+import type { DirectoryContext } from '../lib/note-catalog.mjs';
 
 type Props = CollectionEntry<'blog'>['data'] & {
 	headings?: MarkdownHeading[];
 	hasMath?: boolean;
+	directoryContext: DirectoryContext<BlogEntry>;
 };
 
 const {
@@ -21,32 +24,10 @@ const {
 	pinned = false,
 	headings = [],
 	hasMath = false,
+	directoryContext,
 } = Astro.props;
 const tocHeadings = headings.filter((h) => h.depth <= 3);
-const allPosts = await getCollection('blog');
-const currentId = decodeURIComponent(Astro.url.pathname)
-	.replace(/^\/blog\//, '')
-	.replace(/\/$/, '');
-const currentPost = allPosts.find((post) => post.id === currentId);
-const currentDirectoryParts = currentPost?.id.split('/').slice(0, -1) || [];
-const currentDirectory = currentDirectoryParts.join('/');
-const directoryPosts = allPosts
-	.filter((post) => post.id.split('/').slice(0, -1).join('/') === currentDirectory)
-	.sort(
-		(a, b) =>
-			Number(b.data.pinned) - Number(a.data.pinned) ||
-			b.data.pubDate.valueOf() - a.data.pubDate.valueOf() ||
-			a.data.title.localeCompare(b.data.title),
-	);
-const navigationLabel = (value: string) =>
-	value
-		.split('-')
-		.map((part, index) => {
-			if (['cs', 'ai', 'ml'].includes(part)) return part.toUpperCase();
-			if (index > 0 && ['to', 'of', 'and'].includes(part)) return part;
-			return part[0].toUpperCase() + part.slice(1);
-		})
-		.join(' ');
+const { currentId, directoryLabel, directoryUrl, posts: directoryPosts } = directoryContext;
 
 const jsonLd = JSON.stringify({
 	'@context': 'https://schema.org',
@@ -348,8 +329,8 @@ const jsonLd = JSON.stringify({
 					<details class="blog-nav">
 						<summary class="blog-nav-title">当前目录</summary>
 						<nav aria-label="Blog 导航">
-						<a class="directory-link" href={`/blog/${currentDirectory}/`}>
-							← {navigationLabel(currentDirectoryParts.at(-1) || 'Blog')}
+						<a class="directory-link" href={directoryUrl}>
+							← {directoryLabel}
 						</a>
 						<ul>
 							{
@@ -360,7 +341,7 @@ const jsonLd = JSON.stringify({
 												'file-link',
 												{ active: post.id === currentId, 'pinned-frame': post.data.pinned },
 											]}
-											href={`/blog/${post.id}/`}
+											href={post.url}
 											title={post.data.title}
 										>
 											{post.data.title}

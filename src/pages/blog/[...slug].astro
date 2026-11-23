@@ -1,20 +1,34 @@
 ---
-import { type CollectionEntry, getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
 import BlogPost from '../../layouts/BlogPost.astro';
+import { loadNoteCatalog, type BlogEntry } from '../../lib/blog-collection';
+import type { DirectoryContext } from '../../lib/note-catalog.mjs';
 
 export async function getStaticPaths() {
-	const posts = await getCollection('blog');
-	return posts.map((post) => ({
-		params: { slug: post.id },
-		props: post,
+	const catalog = await loadNoteCatalog();
+	return catalog.allNotes().map((note) => ({
+		params: { slug: note.id },
+		props: {
+			post: note.entry,
+			directoryContext: catalog.directoryContext(note.id),
+		},
 	}));
 }
-type Props = CollectionEntry<'blog'>;
 
-const post = Astro.props;
+interface Props {
+	post: BlogEntry;
+	directoryContext: DirectoryContext<BlogEntry>;
+}
+
+const { post, directoryContext } = Astro.props;
 const { Content, headings, remarkPluginFrontmatter } = await render(post);
 ---
 
-<BlogPost {...post.data} headings={headings} hasMath={Boolean(remarkPluginFrontmatter.hasMath)}>
+<BlogPost
+	{...post.data}
+	headings={headings}
+	hasMath={Boolean(remarkPluginFrontmatter.hasMath)}
+	directoryContext={directoryContext}
+>
 	<Content />
 </BlogPost>

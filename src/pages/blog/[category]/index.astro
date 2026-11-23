@@ -1,66 +1,31 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseHead from '../../../components/BaseHead.astro';
 import Footer from '../../../components/Footer.astro';
 import FormattedDate from '../../../components/FormattedDate.astro';
 import Header from '../../../components/Header.astro';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../../../consts';
+import { loadNoteCatalog } from '../../../lib/blog-collection';
 
 export async function getStaticPaths() {
-	const posts = await getCollection('blog');
-
-	// 收集所有一级目录
-	const topCategories = new Map<string, typeof posts>();
-	posts.forEach((post) => {
-		const top = post.id.split('/')[0];
-		if (!topCategories.has(top)) topCategories.set(top, []);
-		topCategories.get(top)!.push(post);
-	});
-
-	return Array.from(topCategories.entries()).map(([category, catPosts]) => {
-		// 检查是否有子分类（post.id 有 3+ 级路径）
-		const subCategoryMap = new Map<string, typeof posts>();
-		const directPosts: typeof posts = [];
-
-		catPosts.forEach((post) => {
-			const parts = post.id.split('/');
-			if (parts.length > 2) {
-				// 有子分类
-				const sub = parts[1];
-				if (!subCategoryMap.has(sub)) subCategoryMap.set(sub, []);
-				subCategoryMap.get(sub)!.push(post);
-			} else {
-				directPosts.push(post);
-			}
-		});
-
-		const subCategories = Array.from(subCategoryMap.entries())
-			.map(([name, posts]) => ({ name, count: posts.length }))
-			.sort((a, b) => a.name.localeCompare(b.name));
-
-		return {
-			params: { category },
-			props: {
-				subCategories,
-				directPosts: directPosts.sort(
-					(a, b) =>
-						Number(b.data.pinned) - Number(a.data.pinned) ||
-						b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
-				),
-			},
-		};
-	});
+	const catalog = await loadNoteCatalog();
+	return catalog.categoryPages().map((page) => ({
+		params: { category: page.slug },
+		props: {
+			categoryLabel: page.label,
+			subCategories: page.subCategories,
+			directPosts: page.directPosts,
+		},
+	}));
 }
 
-const { category } = Astro.params;
-const { subCategories, directPosts } = Astro.props;
+const { categoryLabel, subCategories, directPosts } = Astro.props;
 const hasSubCategories = subCategories.length > 0;
 ---
 
 <!doctype html>
 <html lang="zh-CN">
 	<head>
-		<BaseHead title={`${category} | ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
+		<BaseHead title={`${categoryLabel} | ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
 		<style>
 			main {
 				width: 720px;
@@ -190,14 +155,14 @@ const hasSubCategories = subCategories.length > 0;
 		<Header />
 		<main>
 			<a class="back-link" href="/blog/">← Back to category list</a>
-			<h1>{category}</h1>
+			<h1>{categoryLabel}</h1>
 			<section>
 				{hasSubCategories ? (
 					<ul class="subcategory-list">
 						{subCategories.map((sub) => (
 							<li class="subcategory-item">
-								<a class="subcategory-link" href={`/blog/${category}/${sub.name}/`}>
-									<h2 class="subcategory-name">{sub.name}</h2>
+								<a class="subcategory-link" href={sub.url}>
+									<h2 class="subcategory-name">{sub.label}</h2>
 									<span class="subcategory-count">{sub.count} posts</span>
 								</a>
 							</li>
@@ -208,7 +173,7 @@ const hasSubCategories = subCategories.length > 0;
 					<ul class="post-list">
 						{directPosts.map((post) => (
 							<li class:list={['post-item', { 'pinned-frame': post.data.pinned }]}>
-								<a class="post-link" href={`/blog/${post.id}/`}>
+								<a class="post-link" href={post.url}>
 									<div class="post-info">
 										<h2 class="post-title">{post.data.title}</h2>
 										{post.data.description && (
