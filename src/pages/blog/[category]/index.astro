@@ -1,9 +1,7 @@
 ---
-import BaseHead from '../../../components/BaseHead.astro';
-import Footer from '../../../components/Footer.astro';
-import FormattedDate from '../../../components/FormattedDate.astro';
-import Header from '../../../components/Header.astro';
+import NoteListing from '../../../components/NoteListing.astro';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../../../consts';
+import PageShell from '../../../layouts/PageShell.astro';
 import { loadNoteCatalog } from '../../../lib/blog-collection';
 
 export async function getStaticPaths() {
@@ -19,179 +17,48 @@ export async function getStaticPaths() {
 }
 
 const { categoryLabel, subCategories, directPosts } = Astro.props;
-const hasSubCategories = subCategories.length > 0;
 ---
 
-<!doctype html>
-<html lang="zh-CN">
-	<head>
-		<BaseHead title={`${categoryLabel} | ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
-		<style>
-			main {
-				width: 720px;
-				max-width: 100%;
-				margin: 0 auto;
-				padding: 2rem 1rem;
-			}
-			.back-link {
-				display: inline-block;
-				margin-bottom: 0.5rem;
-				color: rgb(var(--gray));
-				text-decoration: none;
-				font-size: 0.85rem;
-			}
-			.back-link:hover {
-				color: var(--accent);
-			}
-			h1 {
-				margin-bottom: 1.5rem;
-				color: rgb(var(--black));
-				font-family: var(--font-serif);
-				font-size: 1.75rem;
-			}
-			/* Sub-category list */
-			.subcategory-list {
-				list-style-type: none;
-				margin: 0;
-				padding: 0;
-			}
-			.subcategory-item {
-				border-bottom: 1px solid rgb(var(--gray-light));
-				padding: 0.85rem 0;
-				transition: color 0.15s ease;
-			}
-			.subcategory-item:first-child {
-				border-top: 1px solid rgb(var(--gray-light));
-			}
-			.subcategory-link {
-				text-decoration: none;
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-			}
-			.subcategory-name {
-				margin: 0;
-				color: rgb(var(--black));
-				font-size: 1.05rem;
-				font-weight: 600;
-				font-family: var(--font-serif);
-			}
-			.subcategory-count {
-				color: rgb(var(--gray));
-				font-size: 0.8rem;
-			}
-			.subcategory-item:hover .subcategory-name {
-				color: var(--accent);
-			}
-			/* Direct post list */
-			.post-list {
-				list-style-type: none;
-				margin: 0;
-				padding: 0;
-			}
-			.post-item {
-				border-bottom: 1px solid rgb(var(--gray-light));
-				padding: 0.85rem 0;
-			}
-			.post-item:first-child {
-				border-top: 1px solid rgb(var(--gray-light));
-			}
-			.post-item.pinned-frame {
-				margin: 0.9rem 0 0.75rem;
-				padding: 0.95rem 0.85rem;
-			}
-			.post-link {
-				text-decoration: none;
-				display: flex;
-				justify-content: space-between;
-				align-items: baseline;
-				gap: 1rem;
-			}
-			.post-info {
-				flex: 1;
-				min-width: 0;
-			}
-			.post-title {
-				margin: 0;
-				color: rgb(var(--black));
-				font-size: 1.05rem;
-				font-weight: 600;
-				font-family: var(--font-serif);
-				transition: color 0.15s ease;
-			}
-			.post-date {
-				margin: 0;
-				color: rgb(var(--gray));
-				font-size: 0.8rem;
-				white-space: nowrap;
-				flex-shrink: 0;
-			}
-			.post-description {
-				margin: 0.2rem 0 0 0;
-				color: rgb(var(--gray));
-				font-size: 0.85rem;
-				line-height: 1.4;
-			}
-			.post-item:hover .post-title {
-				color: var(--accent);
-			}
-			.empty-state {
-				text-align: center;
-				color: rgb(var(--gray));
-				padding: 3rem 0;
-			}
-			@media (max-width: 720px) {
-				main {
-					padding: 1rem;
-				}
-				.post-link {
-					flex-direction: column;
-					gap: 0.15rem;
-				}
-			}
-		</style>
-	</head>
-	<body>
-		<Header />
-		<main>
-			<a class="back-link" href="/blog/">← Back to category list</a>
-			<h1>{categoryLabel}</h1>
-			<section>
-				{hasSubCategories ? (
-					<ul class="subcategory-list">
-						{subCategories.map((sub) => (
-							<li class="subcategory-item">
-								<a class="subcategory-link" href={sub.url}>
-									<h2 class="subcategory-name">{sub.label}</h2>
-									<span class="subcategory-count">{sub.count} posts</span>
-								</a>
-							</li>
-						))}
-					</ul>
-				) : null}
-				{directPosts.length > 0 ? (
-					<ul class="post-list">
-						{directPosts.map((post) => (
-							<li class:list={['post-item', { 'pinned-frame': post.data.pinned }]}>
-								<a class="post-link" href={post.url}>
-									<div class="post-info">
-										<h2 class="post-title">{post.data.title}</h2>
-										{post.data.description && (
-											<p class="post-description">{post.data.description}</p>
-										)}
-									</div>
-									<span class="post-date">
-										<FormattedDate date={post.data.pubDate} />
-									</span>
-								</a>
-							</li>
-						))}
-					</ul>
-				) : !hasSubCategories ? (
-					<p class="empty-state">No posts found in this category</p>
-				) : null}
-			</section>
-		</main>
-		<Footer />
-	</body>
-</html>
+<PageShell title={`${categoryLabel} | ${SITE_TITLE}`} description={SITE_DESCRIPTION}>
+	<main>
+		<a class="back-link" href="/blog/">← Back to category list</a>
+		<h1>{categoryLabel}</h1>
+		<section>
+			<NoteListing
+				categories={subCategories}
+				posts={directPosts}
+				emptyMessage="No posts found in this category"
+			/>
+		</section>
+	</main>
+</PageShell>
+
+<style>
+	main {
+		width: 720px;
+		max-width: 100%;
+		margin: 0 auto;
+		padding: 2rem 1rem;
+	}
+	.back-link {
+		display: inline-block;
+		margin-bottom: 0.5rem;
+		color: rgb(var(--gray));
+		text-decoration: none;
+		font-size: 0.85rem;
+	}
+	.back-link:hover {
+		color: var(--accent);
+	}
+	h1 {
+		margin-bottom: 1.5rem;
+		color: rgb(var(--black));
+		font-family: var(--font-serif);
+		font-size: 1.75rem;
+	}
+	@media (max-width: 720px) {
+		main {
+			padding: 1rem;
+		}
+	}
+</style>

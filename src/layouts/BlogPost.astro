@@ -2,12 +2,10 @@
 import { Image } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
 import type { MarkdownHeading } from 'astro';
-import BaseHead from '../components/BaseHead.astro';
-import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
-import Header from '../components/Header.astro';
 import type { BlogEntry } from '../lib/blog-collection';
 import type { DirectoryContext } from '../lib/note-catalog.mjs';
+import PageShell from './PageShell.astro';
 
 type Props = CollectionEntry<'blog'>['data'] & {
 	headings?: MarkdownHeading[];
@@ -45,11 +43,9 @@ const jsonLd = JSON.stringify({
 });
 ---
 
-<html lang="zh-CN">
-	<head>
-		<BaseHead title={title} description={description} image={heroImage} type="article" hasMath={hasMath} />
-		<script type="application/ld+json" set:html={jsonLd} />
-		<style>
+<PageShell title={title} description={description} image={heroImage} type="article" hasMath={hasMath}>
+	<script slot="head" type="application/ld+json" set:html={jsonLd} />
+	<style>
 			main {
 				width: 100%;
 				max-width: 100%;
@@ -316,11 +312,7 @@ const jsonLd = JSON.stringify({
 				}
 			}
 		</style>
-	</head>
-
-	<body>
-		<Header />
-		<main>
+	<main>
 			<article>
 				<div class="hero-image">
 					{heroImage && <Image width={1020} height={510} src={heroImage} alt={title} />}
@@ -389,7 +381,6 @@ const jsonLd = JSON.stringify({
 				</div>
 			</article>
 		</main>
-		<Footer />
 		<script>
 			const sidebars = Array.from(
 				document.querySelectorAll<HTMLDetailsElement>('.article-shell > details'),
@@ -482,5 +473,4 @@ const jsonLd = JSON.stringify({
 				document.addEventListener('scroll', updateActiveLink, { passive: true });
 			}
 		</script>
-	</body>
-</html>
+</PageShell>

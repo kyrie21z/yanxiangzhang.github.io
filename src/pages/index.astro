@@ -1,10 +1,8 @@
 ---
 import { Image } from 'astro:assets';
-import BaseHead from '../components/BaseHead.astro';
-import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
-import Header from '../components/Header.astro';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+import PageShell from '../layouts/PageShell.astro';
 import { loadNoteCatalog } from '../lib/blog-collection';
 import monicaImage from '../assets/monica.png';
 
@@ -12,14 +10,8 @@ const catalog = await loadNoteCatalog();
 const { featured: featuredPost, remaining: remainingPosts } = catalog.homeFeed();
 ---
 
-<!doctype html>
-<html lang="zh-CN">
-	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
-	</head>
-	<body>
-		<Header />
-		<main class="home-container">
+<PageShell title={SITE_TITLE} description={SITE_DESCRIPTION}>
+	<main class="home-container">
 			<section class="hero" aria-labelledby="profile-name">
 				<div>
 					<p class="eyebrow">Research &amp; Notes</p>
@@ -69,9 +61,7 @@ const { featured: featuredPost, remaining: remainingPosts } = catalog.homeFeed()
 				</ul>
 			</section>
 		</main>
-		<Footer />
-	</body>
-</html>
+</PageShell>
 
 <style>
 	main.home-container { width: min(100% - 3rem, 960px); max-width: none; padding: 4rem 0 3rem; }

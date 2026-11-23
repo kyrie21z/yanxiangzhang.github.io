@@ -1,14 +1,27 @@
 ---
 import { SITE_TITLE } from '../consts';
-import HeaderLink from './HeaderLink.astro';
+
+const pathname = Astro.url.pathname.replace(import.meta.env.BASE_URL, '');
+const firstSegment = pathname.match(/[^/]+/g)?.[0] || '';
+const navLinks = [
+	{ href: '/', label: 'Home' },
+	{ href: '/blog', label: 'Notes' },
+];
+const isActiveLink = (href: string) => href === pathname || href === `/${firstSegment}`;
 ---
 
 <header>
 	<nav>
 		<span class="site-title"><a href="/">{SITE_TITLE}</a></span>
 		<div class="internal-links">
-			<HeaderLink href="/">Home</HeaderLink>
-			<HeaderLink href="/blog">Notes</HeaderLink>
+			{navLinks.map(({ href, label }) => {
+				const active = isActiveLink(href);
+				return (
+					<a href={href} class:list={{ active }} aria-current={active ? 'page' : undefined}>
+						{label}
+					</a>
+				);
+			})}
 		</div>
 		<div class="social-links">
 			<a href="https://github.com/kyrie21z" target="_blank">
