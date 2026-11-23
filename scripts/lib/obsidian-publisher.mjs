@@ -2,14 +2,16 @@ import { createHash } from 'node:crypto';
 import {
 	copyFileSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
 	statSync,
 	unlinkSync,
 	writeFileSync,
 } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { slug } from 'github-slugger';
 
 const HASH_SUFFIX_RE = /-[0-9a-f]{12}\.md$/i;
@@ -20,12 +22,61 @@ const LATEX_COMMANDS =
 const INLINE_LATEX_RE = new RegExp(`\\(\\\\(${LATEX_COMMANDS})([^)]*)\\)`, 'g');
 const BLOCK_LATEX_RE = /^\[ {2}\n(.+)\n\]/gm;
 
+function toPosixPath(filepath) {
+	return filepath.split(sep).join('/');
+}
+
+function isWithinDirectory(rootPath, candidatePath, { strict = false } = {}) {
+	const rel = relative(rootPath, candidatePath);
+	if (rel === '') return !strict;
+	return rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+function deepestExistingRealPath(targetPath) {
+	let current = resolve(targetPath);
+	const trailing = [];
+	while (!existsSync(current)) {
+		const parent = dirname(current);
+		if (parent === current) break;
+		trailing.unshift(basename(current));
+		current = parent;
+	}
+	const realBase = existsSync(current) ? realpathSync(current) : current;
+	return trailing.length > 0 ? join(realBase, ...trailing) : realBase;
+}
+
+function assertPathWithinRoot(rootRealPath, targetPath, { strict = false, label = 'path' } = {}) {
+	const resolvedTarget = resolve(targetPath);
+	const realTarget = deepestExistingRealPath(resolvedTarget);
+	if (!isWithinDirectory(rootRealPath, realTarget, { strict })) {
+		throw new Error(`Refusing ${label} outside root (${rootRealPath}): ${targetPath}`);
+	}
+	return realTarget;
+}
+
+function assertExistingFileWithinRoot(rootRealPath, targetPath, label) {
+	if (!existsSync(targetPath)) return null;
+	const realTarget = realpathSync(targetPath);
+	if (!isWithinDirectory(rootRealPath, realTarget, { strict: true })) {
+		throw new Error(`Refusing ${label} outside root (${rootRealPath}): ${targetPath}`);
+	}
+	return realTarget;
+}
+
 function getBaseFilename(filename) {
 	return HASH_SUFFIX_RE.test(filename) ? filename.replace(HASH_SUFFIX_RE, '.md') : filename;
 }
 
-function sanitizeImageName(filename) {
-	return basename(filename.trim()).replace(/\s+/g, '-');
+function sanitizeImageName(rawFilename) {
+	const normalized = rawFilename.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+	const segments = normalized
+		.split('/')
+		.filter((part) => part && part !== '.' && part !== '..')
+		.map((part) => part.replace(/\s+/g, '-'));
+	if (segments.length === 0) {
+		throw new Error(`Invalid image reference: ${rawFilename}`);
+	}
+	return segments.join('-');
 }
 
 function buildNoteUrl(category, noteName) {
@@ -34,12 +85,107 @@ function buildNoteUrl(category, noteName) {
 		.filter(Boolean)
 		.map((part) => slug(part))
 		.join('/');
-	return `/blog/${categoryPath}/${slug(noteName)}/`;
+	const noteSlug = slug(noteName);
+	if (noteSlug === 'index') {
+		return `/blog/${categoryPath}/`;
+	}
+	return `/blog/${categoryPath}/${noteSlug}/`;
 }
 
 function imageRelativePrefix(category) {
 	const depth = category.split('/').filter(Boolean).length;
 	return `${'../'.repeat(depth + 2)}assets/`;
+}
+
+function decodeDoubleQuotedYaml(raw) {
+	let output = '';
+	for (let i = 0; i < raw.length; i++) {
+		if (raw[i] !== '\\') {
+			output += raw[i];
+			continue;
+		}
+		const next = raw[++i];
+		if (next === undefined) {
+			output += '\\';
+			break;
+		}
+		switch (next) {
+			case '"':
+				output += '"';
+				break;
+			case '\\':
+				output += '\\';
+				break;
+			case '/':
+				output += '/';
+				break;
+			case 'n':
+				output += '\n';
+				break;
+			case 'r':
+				output += '\r';
+				break;
+			case 't':
+				output += '\t';
+				break;
+			case 'u': {
+				const hex = raw.slice(i + 1, i + 5);
+				if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+					output += String.fromCharCode(parseInt(hex, 16));
+					i += 4;
+				} else {
+					output += '\\u';
+				}
+				break;
+			}
+			default:
+				output += next;
+		}
+	}
+	return output;
+}
+
+function parseYamlScalar(rawValue) {
+	const trimmed = rawValue.trim();
+	if (!trimmed) return '';
+
+	if (trimmed.startsWith('"')) {
+		let escaped = false;
+		for (let i = 1; i < trimmed.length; i++) {
+			const ch = trimmed[i];
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (ch === '\\') {
+				escaped = true;
+				continue;
+			}
+			if (ch === '"') {
+				return decodeDoubleQuotedYaml(trimmed.slice(1, i));
+			}
+		}
+		return decodeDoubleQuotedYaml(trimmed.slice(1));
+	}
+
+	if (trimmed.startsWith("'")) {
+		let result = '';
+		for (let i = 1; i < trimmed.length; i++) {
+			if (trimmed[i] === "'") {
+				if (trimmed[i + 1] === "'") {
+					result += "'";
+					i++;
+				} else {
+					return result;
+				}
+			} else {
+				result += trimmed[i];
+			}
+		}
+		return result;
+	}
+
+	return trimmed.replace(/\s+#.*$/, '').trim();
 }
 
 function parseFrontmatter(content) {
@@ -48,10 +194,11 @@ function parseFrontmatter(content) {
 
 	const metadata = {};
 	for (const line of match[1].split(/\r?\n/)) {
-		const field = line.match(/^([A-Za-z][\w-]*):\s*(.*?)\s*$/);
-		if (field && field[2]) {
-			metadata[field[1]] = field[2].replace(/^['"]|['"]$/g, '');
-		}
+		if (!line.trim() || line.trimStart().startsWith('#')) continue;
+		const field = line.match(/^([A-Za-z][\w-]*):(?:\s+(.*))?$/);
+		if (!field) continue;
+		const parsed = parseYamlScalar(field[2] || '');
+		if (parsed) metadata[field[1]] = parsed;
 	}
 	return { body: content.slice(match[0].length), metadata };
 }
@@ -101,8 +248,12 @@ function resolvePublishDate(filepath, metadata) {
 	return statSync(filepath).mtime.toISOString().slice(0, 10);
 }
 
-function contentHash(filepath) {
-	return createHash('md5').update(readFileSync(filepath)).digest('hex');
+function sha256Text(text) {
+	return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+function sha256File(filepath) {
+	return createHash('sha256').update(readFileSync(filepath)).digest('hex');
 }
 
 function loadManifest(manifestPath) {
@@ -118,7 +269,7 @@ function loadManifest(manifestPath) {
 	}
 }
 
-function deduplicateVaultFiles(files, vaultDir, skipSet) {
+function deduplicateVaultFiles(files, vaultRealDir, skipSet) {
 	const groups = new Map();
 	for (const file of files) {
 		const base = getBaseFilename(file);
@@ -137,7 +288,11 @@ function deduplicateVaultFiles(files, vaultDir, skipSet) {
 		const hashed = variants.filter((name) => name !== base).sort();
 
 		if (original) {
-			const originalPath = join(vaultDir, original);
+			const originalPath = assertExistingFileWithinRoot(
+				vaultRealDir,
+				join(vaultRealDir, original),
+				'vault note',
+			);
 			const originalContent = readFileSync(originalPath, 'utf8');
 			if (
 				!skipSet.has(original) &&
@@ -153,6 +308,15 @@ function deduplicateVaultFiles(files, vaultDir, skipSet) {
 	}
 
 	return selected.sort();
+}
+
+function resolveVaultImageSource(cleanName, vaultRealDir) {
+	const candidates = [join(vaultRealDir, cleanName), join(vaultRealDir, 'images', cleanName)];
+	for (const candidate of candidates) {
+		if (!existsSync(candidate)) continue;
+		return assertExistingFileWithinRoot(vaultRealDir, candidate, 'vault image');
+	}
+	return null;
 }
 
 function transformMarkdown(body, { category, noteUrlMap, convertLegacyLatex = false, onImage }) {
@@ -202,64 +366,75 @@ function serializeFrontmatter({ title, description, pubDate }) {
 	].join('\n');
 }
 
-function copyReferencedImage(cleanName, sanitized, { vaultDir, assetsDir, manifest, nextManifest, dryRun, log }) {
-	const candidates = [join(vaultDir, cleanName), join(vaultDir, 'images', cleanName)];
-	const source = candidates.find(existsSync);
-	if (!source) return { status: 'missing', sanitized };
-
-	const dest = join(assetsDir, sanitized);
-	const hash = contentHash(source);
-	nextManifest.images[sanitized] = hash;
-
-	if (manifest && manifest.images[sanitized] === hash && existsSync(dest)) {
-		return { status: 'unchanged', sanitized };
+function validateManagedCategories(blogRealDir, managedCategories) {
+	const validated = [];
+	for (const category of managedCategories || []) {
+		if (!category || !category.trim()) {
+			throw new Error('managedCategories entries must be non-empty relative paths');
+		}
+		if (isAbsolute(category)) {
+			throw new Error(`Refusing absolute managedCategories entry: ${category}`);
+		}
+		const targetDir = resolve(blogRealDir, category);
+		if (existsSync(targetDir) && lstatSync(targetDir).isSymbolicLink()) {
+			throw new Error(`Refusing symlinked managed category directory: ${category}`);
+		}
+		const realTarget = assertPathWithinRoot(blogRealDir, targetDir, {
+			strict: true,
+			label: 'managed category',
+		});
+		validated.push({ category, targetDir: realTarget });
 	}
-
-	if (!dryRun) {
-		mkdirSync(assetsDir, { recursive: true });
-		copyFileSync(source, dest);
-	}
-	log(`  [image] ${cleanName} -> ${dest}`);
-	return { status: 'copied', sanitized };
+	return validated;
 }
 
-function cleanScopedCategories({ blogDir, managedCategories, publishedPaths, dryRun, log }) {
-	if (!managedCategories || managedCategories.length === 0) return 0;
+function cleanScopedCategories({
+	blogRealDir,
+	validatedManagedCategories,
+	publishedKeys,
+	ownedKeys,
+	dryRun,
+	log,
+}) {
+	if (validatedManagedCategories.length === 0 || publishedKeys.size === 0) return 0;
 
 	let cleaned = 0;
-	const resolvedBlogDir = resolve(blogDir);
 
-	function walk(dir) {
+	function walk(dir, rootRealDir) {
 		if (!existsSync(dir)) return;
 		for (const entry of readdirSync(dir, { withFileTypes: true })) {
 			const fullPath = join(dir, entry.name);
+			if (entry.isSymbolicLink()) continue;
 			if (entry.isDirectory()) {
-				walk(fullPath);
-			} else if (entry.name.endsWith('.md') && !publishedPaths.has(resolve(fullPath))) {
-				if (!dryRun) unlinkSync(fullPath);
-				log(`  [cleaned] ${fullPath}`);
+				const realSubdir = realpathSync(fullPath);
+				if (!isWithinDirectory(rootRealDir, realSubdir, { strict: true })) continue;
+				walk(realSubdir, rootRealDir);
+			} else if (entry.name.endsWith('.md')) {
+				const realFile = realpathSync(fullPath);
+				if (!isWithinDirectory(rootRealDir, realFile, { strict: true })) continue;
+				const relKey = toPosixPath(relative(blogRealDir, realFile));
+				if (publishedKeys.has(relKey)) continue;
+				if (ownedKeys && !ownedKeys.has(relKey)) continue;
+
+				if (!dryRun) unlinkSync(realFile);
+				log(`  [cleaned] ${relKey}`);
 				cleaned++;
 			}
 		}
 	}
 
-	for (const category of managedCategories) {
-		if (!category || !category.trim()) continue;
-		const targetDir = resolve(blogDir, category);
-		if (!targetDir.startsWith(`${resolvedBlogDir}/`) && targetDir !== resolvedBlogDir) {
-			throw new Error(`Refusing to clean outside blogDir: ${category}`);
-		}
-		if (targetDir === resolvedBlogDir) {
-			throw new Error('Refusing to clean entire blogDir; specify explicit managedCategories');
-		}
-		walk(targetDir);
+	for (const { targetDir } of validatedManagedCategories) {
+		walk(targetDir, targetDir);
 	}
 
 	return cleaned;
 }
 
-function collectRootGraphNotes({ vaultDir, rootNote, category }) {
-	const rootPath = join(vaultDir, `${rootNote}.md`);
+function collectRootGraphNotes({ vaultRealDir, rootNote, category }) {
+	const rootPath = assertPathWithinRoot(vaultRealDir, join(vaultRealDir, `${rootNote}.md`), {
+		strict: true,
+		label: 'root note',
+	});
 	if (!existsSync(rootPath)) {
 		throw new Error(`Root note not found: ${rootPath}`);
 	}
@@ -270,11 +445,12 @@ function collectRootGraphNotes({ vaultDir, rootNote, category }) {
 	const missingNotes = [];
 
 	for (const name of noteNames) {
-		const sourcePath = join(vaultDir, `${name}.md`);
-		if (!existsSync(sourcePath)) {
+		const candidatePath = join(vaultRealDir, `${name}.md`);
+		if (!existsSync(candidatePath)) {
 			missingNotes.push(name);
 			continue;
 		}
+		const sourcePath = assertExistingFileWithinRoot(vaultRealDir, candidatePath, 'linked note');
 		items.push({
 			sourcePath,
 			noteName: name,
@@ -286,17 +462,14 @@ function collectRootGraphNotes({ vaultDir, rootNote, category }) {
 	return { items, missingNotes, skipped: 0 };
 }
 
-function collectCategoryMapNotes({ vaultDir, resolveCategory, skipFiles }) {
+function collectCategoryMapNotes({ vaultRealDir, resolveCategory, skipFiles }) {
 	if (typeof resolveCategory !== 'function') {
 		throw new Error('category-map mode requires a resolveCategory(filename) function');
 	}
-	if (!existsSync(vaultDir)) {
-		throw new Error(`Vault directory not found: ${vaultDir}`);
-	}
 
 	const skipSet = new Set(skipFiles || []);
-	const allFiles = readdirSync(vaultDir).filter((file) => file.endsWith('.md'));
-	const deduped = deduplicateVaultFiles(allFiles, vaultDir, skipSet);
+	const allFiles = readdirSync(vaultRealDir).filter((file) => file.endsWith('.md'));
+	const deduped = deduplicateVaultFiles(allFiles, vaultRealDir, skipSet);
 	const items = [];
 	let skipped = 0;
 
@@ -307,7 +480,11 @@ function collectCategoryMapNotes({ vaultDir, resolveCategory, skipFiles }) {
 			continue;
 		}
 
-		const sourcePath = join(vaultDir, file);
+		const sourcePath = assertExistingFileWithinRoot(
+			vaultRealDir,
+			join(vaultRealDir, file),
+			'vault note',
+		);
 		if (statSync(sourcePath).size < 50) {
 			skipped++;
 			continue;
@@ -356,15 +533,23 @@ export function publishObsidianNotes(options) {
 	if (!vaultDir) throw new Error('vaultDir is required');
 	if (!blogDir) throw new Error('blogDir is required');
 	if (!assetsDir) throw new Error('assetsDir is required');
+	if (!existsSync(vaultDir)) throw new Error(`Vault directory not found: ${vaultDir}`);
+
+	const vaultRealDir = realpathSync(vaultDir);
+	const blogRealDir = deepestExistingRealPath(blogDir);
+	const assetsRealDir = deepestExistingRealPath(assetsDir);
+
+	// Validate all managed cleanup roots upfront before touching disk.
+	const validatedManagedCategories = validateManagedCategories(blogRealDir, managedCategories);
 
 	const manifest = manifestPath ? loadManifest(manifestPath) : null;
 	const nextManifest = { files: {}, images: {} };
 
 	const collected =
 		mode === 'root-graph'
-			? collectRootGraphNotes({ vaultDir, rootNote, category })
+			? collectRootGraphNotes({ vaultRealDir, rootNote, category })
 			: mode === 'category-map'
-				? collectCategoryMapNotes({ vaultDir, resolveCategory, skipFiles })
+				? collectCategoryMapNotes({ vaultRealDir, resolveCategory, skipFiles })
 				: (() => {
 						throw new Error(`Unsupported publish mode: ${mode}`);
 					})();
@@ -373,74 +558,117 @@ export function publishObsidianNotes(options) {
 		collected.items.map((item) => [item.noteName, buildNoteUrl(item.category, item.noteName)]),
 	);
 
-	const publishedPaths = new Set();
-	const referencedImages = new Map();
+	// Phase 1: Plan & validate every output note and image before mutating disk.
+	const plannedNotes = [];
+	const plannedImages = new Map();
 	const missingImages = new Set();
-	let published = 0;
-	let unchanged = 0;
-	let copiedImages = 0;
 
 	for (const item of collected.items) {
-		const outDir = join(blogDir, item.category);
-		const outPath = join(outDir, item.outputFilename);
-		const resolvedOut = resolve(outPath);
-		publishedPaths.add(resolvedOut);
+		const outDir = assertPathWithinRoot(blogRealDir, join(blogRealDir, item.category), {
+			strict: true,
+			label: 'output category directory',
+		});
+		const outPath = assertPathWithinRoot(blogRealDir, join(outDir, item.outputFilename), {
+			strict: true,
+			label: 'output note',
+		});
+		const relKey = toPosixPath(relative(blogRealDir, outPath));
 
 		const source = readFileSync(item.sourcePath, 'utf8');
 		const { body, metadata } = parseFrontmatter(source);
-		const hash = contentHash(item.sourcePath);
-
 		const transformed = transformMarkdown(body, {
 			category: item.category,
 			noteUrlMap,
 			convertLegacyLatex,
 			onImage: (cleanName, sanitized) => {
-				referencedImages.set(sanitized, cleanName);
+				const resolvedSource = resolveVaultImageSource(cleanName, vaultRealDir);
+				if (!resolvedSource) {
+					missingImages.add(cleanName);
+					return;
+				}
+				const destPath = assertPathWithinRoot(assetsRealDir, join(assetsRealDir, sanitized), {
+					strict: true,
+					label: 'output image',
+				});
+				const existing = plannedImages.get(sanitized);
+				if (existing && existing.sourcePath !== resolvedSource) {
+					throw new Error(
+						`Image filename collision for "${sanitized}": "${existing.cleanName}" and "${cleanName}"`,
+					);
+				}
+				plannedImages.set(sanitized, { cleanName, sanitized, sourcePath: resolvedSource, destPath });
 			},
 		});
-
-		if (manifest && manifest.files[resolvedOut] === hash && existsSync(outPath)) {
-			nextManifest.files[resolvedOut] = hash;
-			unchanged++;
-			continue;
-		}
 
 		const title = metadata.title || item.noteName;
 		const description = extractDescription(transformed, title);
 		const pubDate = resolvePublishDate(item.sourcePath, metadata);
 		const output = `${serializeFrontmatter({ title, description, pubDate })}${transformed}`;
+		const outputHash = sha256Text(output);
+
+		plannedNotes.push({ item, outDir, outPath, relKey, output, outputHash });
+	}
+
+	// Phase 2: Apply validated writes, copies, and ownership-verified scoped cleanup.
+	const publishedKeys = new Set();
+	let published = 0;
+	let unchanged = 0;
+	let copiedImages = 0;
+
+	for (const plan of plannedNotes) {
+		publishedKeys.add(plan.relKey);
+		nextManifest.files[plan.relKey] = plan.outputHash;
+
+		if (
+			manifest &&
+			manifest.files[plan.relKey] === plan.outputHash &&
+			existsSync(plan.outPath) &&
+			sha256File(plan.outPath) === plan.outputHash
+		) {
+			unchanged++;
+			continue;
+		}
 
 		if (!dryRun) {
-			mkdirSync(outDir, { recursive: true });
-			writeFileSync(outPath, output, 'utf8');
+			mkdirSync(plan.outDir, { recursive: true });
+			writeFileSync(plan.outPath, plan.output, 'utf8');
 		}
-		nextManifest.files[resolvedOut] = hash;
-		logger(`  [published] [${item.category}] ${item.outputFilename}`);
+		logger(`  [published] [${plan.item.category}] ${plan.item.outputFilename}`);
 		published++;
 	}
 
-	for (const [sanitized, cleanName] of referencedImages) {
-		const outcome = copyReferencedImage(cleanName, sanitized, {
-			vaultDir,
-			assetsDir,
-			manifest,
-			nextManifest,
-			dryRun,
-			log: logger,
-		});
-		if (outcome.status === 'copied') copiedImages++;
-		else if (outcome.status === 'missing') missingImages.add(cleanName);
+	for (const img of plannedImages.values()) {
+		const hash = sha256File(img.sourcePath);
+		nextManifest.images[img.sanitized] = hash;
+
+		if (
+			manifest &&
+			manifest.images[img.sanitized] === hash &&
+			existsSync(img.destPath) &&
+			sha256File(img.destPath) === hash
+		) {
+			continue;
+		}
+
+		if (!dryRun) {
+			mkdirSync(assetsRealDir, { recursive: true });
+			copyFileSync(img.sourcePath, img.destPath);
+		}
+		logger(`  [image] ${img.cleanName} -> ${img.destPath}`);
+		copiedImages++;
 	}
 
+	const ownedKeys = manifest ? new Set(Object.keys(manifest.files)) : new Set();
 	const cleaned = cleanScopedCategories({
-		blogDir,
-		managedCategories,
-		publishedPaths,
+		blogRealDir,
+		validatedManagedCategories,
+		publishedKeys,
+		ownedKeys,
 		dryRun,
 		log: logger,
 	});
 
-	if (manifestPath && !dryRun) {
+	if (manifestPath && !dryRun && publishedKeys.size > 0) {
 		writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');
 	}
 

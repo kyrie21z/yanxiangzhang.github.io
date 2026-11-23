@@ -69,6 +69,7 @@ export interface SearchIndexItem {
 	date: string;
 	formattedDate: string;
 	category: string;
+	categorySlug: string;
 	pinned: boolean;
 }
 
@@ -91,5 +92,6 @@ export interface NoteCatalog<TEntry extends NoteEntry = NoteEntry> {
 }
 
 export function formatUtcDate(date: Date | string): string;
+export function serializeForScript(value: unknown): string;
 export function formatTaxonomyLabel(segment: string): string;
 export function createNoteCatalog<TEntry extends NoteEntry>(entries: TEntry[]): NoteCatalog<TEntry>;

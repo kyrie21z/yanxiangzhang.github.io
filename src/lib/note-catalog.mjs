@@ -24,6 +24,13 @@ export function formatUtcDate(date) {
 	return value.toLocaleDateString('en-us', UTC_DATE_OPTIONS);
 }
 
+export function serializeForScript(value) {
+	return JSON.stringify(value)
+		.replace(/</g, '\\u003c')
+		.replace(/\u2028/g, '\\u2028')
+		.replace(/\u2029/g, '\\u2029');
+}
+
 export function formatTaxonomyLabel(segment) {
 	if (!segment) return '';
 	return segment
@@ -202,6 +209,7 @@ export function createNoteCatalog(entries) {
 				date: note.data.pubDate.toISOString(),
 				formattedDate: note.formattedDate,
 				category: note.categoryTrail,
+				categorySlug: note.directoryPath,
 				pinned: Boolean(note.data.pinned),
 			}));
 		},

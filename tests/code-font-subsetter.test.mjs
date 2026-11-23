@@ -94,7 +94,11 @@ describe('syncCodeFont', () => {
 	});
 
 	it('produces a valid subset via the real Python fontTools adapter when local venv is present', (t) => {
-		const realPython = join(REPO_ROOT, '.font-build/bin/python');
+		const realPython = join(
+			REPO_ROOT,
+			'.font-build',
+			process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+		);
 		const smallSourceFont = join(REPO_ROOT, 'public/fonts/atkinson-regular.woff2');
 		if (!existsSync(realPython) || !existsSync(smallSourceFont)) {
 			t.skip('Local .font-build virtualenv or fixture font not available');

@@ -1,5 +1,7 @@
 """Thin fontTools adapter: subset a source font to an explicit codepoint list."""
 import argparse
+import os
+import tempfile
 from pathlib import Path
 from fontTools import subset
 from fontTools.ttLib import TTFont
@@ -41,17 +43,29 @@ def main() -> None:
     font.flavor = 'woff2'
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = args.output.with_suffix('.tmp.woff2')
-    font.save(temporary)
-    font.close()
+    fd, temp_name = tempfile.mkstemp(
+        dir=args.output.parent,
+        prefix=f'.{args.output.stem}.',
+        suffix='.tmp.woff2',
+    )
+    os.close(fd)
+    temporary = Path(temp_name)
 
-    with TTFont(temporary) as result:
-        missing = required - set(result.getBestCmap())
-        if missing:
+    try:
+        font.save(temporary)
+        font.close()
+
+        with TTFont(temporary) as result:
+            missing = required - set(result.getBestCmap())
+            if missing:
+                raise RuntimeError(f'Font subset lost {len(missing)} required characters')
+
+        temporary.replace(args.output)
+    except Exception:
+        if temporary.exists():
             temporary.unlink()
-            raise RuntimeError(f'Font subset lost {len(missing)} required characters')
+        raise
 
-    temporary.replace(args.output)
     print(
         f'Code font: {args.source.stat().st_size:,} → {args.output.stat().st_size:,} bytes; '
         f'{len(required)} characters covered'

@@ -4,6 +4,7 @@ import {
 	createNoteCatalog,
 	formatTaxonomyLabel,
 	formatUtcDate,
+	serializeForScript,
 } from '../src/lib/note-catalog.mjs';
 
 function makeEntry(id, { title, description = '', pubDate, pinned = false }) {
@@ -171,7 +172,7 @@ describe('createNoteCatalog', () => {
 		);
 	});
 
-	it('builds search index with formatted category trails and pre-formatted UTC dates', () => {
+	it('builds search index with formatted category trails, raw category slugs, and pre-formatted UTC dates', () => {
 		const index = catalog.searchIndex();
 		const algoEntry = index.find(
 			(item) => item.url === '/blog/cs-major-courses/introduction-to-algorithms/merge-sort/',
@@ -183,8 +184,19 @@ describe('createNoteCatalog', () => {
 			date: '2026-09-10T00:00:00.000Z',
 			formattedDate: 'Sep 10, 2026',
 			category: 'CS Major Courses / Introduction to Algorithms',
+			categorySlug: 'cs-major-courses/introduction-to-algorithms',
 			pinned: false,
 		});
+	});
+
+	it('escapes HTML script-breakout characters when serializing search index JSON', () => {
+		const serialized = serializeForScript([
+			{ title: '</SCRIPT ><!-- x -->', description: 'a < b' },
+		]);
+		assert.equal(serialized.includes('<'), false);
+		assert.deepEqual(JSON.parse(serialized), [
+			{ title: '</SCRIPT ><!-- x -->', description: 'a < b' },
+		]);
 	});
 
 	it('filters out example notes from RSS and orders strictly newest-first', () => {
