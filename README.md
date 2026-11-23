@@ -122,23 +122,18 @@ npm run preview
 
 ## 从 Obsidian 同步内容
 
-项目包含 `scripts/publish-obsidian.mjs`，用于将 `Obsidian Vault/` 中符合规则的笔记发布到 `src/content/blog/`。
+项目提供统一的发布模块 `scripts/lib/obsidian-publisher.mjs` 以及两个 CLI 入口：
 
-执行：
+- `npm run publish-algorithms`（`scripts/publish-introduction-to-algorithms.mjs`）：通过环境变量 `OBSIDIAN_VAULT` 或 `--vault <路径>` 按根笔记双链同步《算法导论》笔记。
+- `node scripts/publish-obsidian.mjs --config <映射配置.json>`：按显式分类映射与受管目录（`managedCategories`）执行增量同步，仅清理配置中声明的受管目录，避免误删其他文章。
 
-```sh
-node scripts/publish-obsidian.mjs
-```
+发布模块统一处理：
 
-脚本会处理：
-
-- 按文件名规则映射分类目录。
-- 跳过索引页、空文件和未匹配分类的笔记。
-- 去重带哈希后缀的同名笔记。
-- 将 Obsidian 双链转换为站内链接。
-- 将 Obsidian 图片引用转换为 Astro 可识别的相对图片路径。
-- 复制 `Obsidian Vault/images/` 中的图片到 `src/assets/`。
-- 使用 `scripts/.publish-manifest.json` 做增量同步。
+- 去重带哈希后缀的同名笔记、跳过索引页和空文件。
+- 使用 `github-slugger` 将 Obsidian 双链（含 `#标题` 与 `|别名`）转换为站内链接。
+- 按目标分类层级计算图片相对路径，并按需复制引用图片到 `src/assets/`。
+- 输出安全转义的 frontmatter 与 UTC 日期。
+- 可选通过 `scripts/.publish-manifest.json` 记录增量同步哈希。
 
 ## 部署
 

@@ -1,0 +1,132 @@
+---
+import type { BlogEntry } from '../lib/blog-collection';
+import type { CatalogNote, CategorySummary } from '../lib/note-catalog.mjs';
+import FormattedDate from './FormattedDate.astro';
+
+interface Props {
+	categories?: CategorySummary[];
+	posts?: CatalogNote<BlogEntry>[];
+	emptyMessage?: string;
+}
+
+const { categories = [], posts = [], emptyMessage = 'No posts found' } = Astro.props;
+const hasCategories = categories.length > 0;
+const hasPosts = posts.length > 0;
+---
+
+{hasCategories && (
+	<ul class="directory-list">
+		{categories.map((item) => (
+			<li class="directory-item">
+				<a class="directory-link" href={item.url}>
+					<h2 class="directory-name">{item.label}</h2>
+					<span class="directory-count">{item.count} posts</span>
+				</a>
+			</li>
+		))}
+	</ul>
+)}
+
+{hasPosts ? (
+	<ul class="post-list">
+		{posts.map((post) => (
+			<li class:list={['post-item', { 'pinned-frame': post.data.pinned }]}>
+				<a class="post-link" href={post.url}>
+					<div class="post-info">
+						<h2 class="post-title">{post.data.title}</h2>
+						{post.data.description && (
+							<p class="post-description">{post.data.description}</p>
+						)}
+					</div>
+					<span class="post-date">
+						<FormattedDate date={post.data.pubDate} />
+					</span>
+				</a>
+			</li>
+		))}
+	</ul>
+) : !hasCategories ? (
+	<p class="empty-state">{emptyMessage}</p>
+) : null}
+
+<style>
+	.directory-list,
+	.post-list {
+		list-style-type: none;
+		margin: 0;
+		padding: 0;
+	}
+	.directory-item,
+	.post-item {
+		border-bottom: 1px solid rgb(var(--gray-light));
+		padding: 0.85rem 0;
+	}
+	.directory-item {
+		transition: color 0.15s ease;
+	}
+	.directory-item:first-child,
+	.post-item:first-child {
+		border-top: 1px solid rgb(var(--gray-light));
+	}
+	.directory-link {
+		text-decoration: none;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	.directory-name,
+	.post-title {
+		margin: 0;
+		color: rgb(var(--black));
+		font-size: 1.05rem;
+		font-weight: 600;
+		font-family: var(--font-serif);
+		transition: color 0.15s ease;
+	}
+	.directory-count,
+	.post-date {
+		margin: 0;
+		color: rgb(var(--gray));
+		font-size: 0.8rem;
+	}
+	.directory-item:hover .directory-name,
+	.post-item:hover .post-title {
+		color: var(--accent);
+	}
+	.post-item.pinned-frame {
+		margin: 0.9rem 0 0.75rem;
+		padding: 0.95rem 0.85rem;
+	}
+	.post-link {
+		text-decoration: none;
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+	}
+	.post-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.post-date {
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+	.post-description {
+		margin: 0.2rem 0 0 0;
+		color: rgb(var(--gray));
+		font-size: 0.85rem;
+		line-height: 1.4;
+	}
+	.empty-state {
+		text-align: center;
+		color: rgb(var(--gray));
+		padding: 3rem 0;
+	}
+	@media (max-width: 720px) {
+		.post-link {
+			flex-direction: column;
+			gap: 0.15rem;
+		}
+	}
+</style>

@@ -1,31 +1,17 @@
 ---
 import { Image } from 'astro:assets';
-import { getCollection } from 'astro:content';
-import BaseHead from '../components/BaseHead.astro';
-import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
-import Header from '../components/Header.astro';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+import PageShell from '../layouts/PageShell.astro';
+import { loadNoteCatalog } from '../lib/blog-collection';
 import monicaImage from '../assets/monica.png';
 
-const examplePosts = new Set(['paper-sharing/example-paper-sharing', 'personal-insights/example-personal-insights']);
-const latestPosts = (await getCollection('blog'))
-	.filter((post) => !post.id.startsWith('cs-major-courses/') && !examplePosts.has(post.id))
-	.sort((a, b) => Number(b.data.pinned) - Number(a.data.pinned) || b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
-	.slice(0, 5);
-const featuredPost = latestPosts.find((post) => post.id.startsWith('research-notes/')) || latestPosts[0];
-const remainingPosts = latestPosts.filter((post) => post.id !== featuredPost?.id);
-const categoryLabel = (id: string) => id.split('/')[0].split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+const catalog = await loadNoteCatalog();
+const { featured: featuredPost, remaining: remainingPosts } = catalog.homeFeed();
 ---
 
-<!doctype html>
-<html lang="zh-CN">
-	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
-	</head>
-	<body>
-		<Header />
-		<main class="home-container">
+<PageShell title={SITE_TITLE} description={SITE_DESCRIPTION}>
+	<main class="home-container">
 			<section class="hero" aria-labelledby="profile-name">
 				<div>
 					<p class="eyebrow">Research &amp; Notes</p>
@@ -55,8 +41,8 @@ const categoryLabel = (id: string) => id.split('/')[0].split('-').map((word) => 
 				<ul class="latest-posts">
 					{featuredPost && (
 						<li class="featured-note">
-							<a class:list={{ 'pinned-frame': featuredPost.data.pinned }} href={`/blog/${featuredPost.id}/`}>
-								<div class="note-meta"><span>{categoryLabel(featuredPost.id)}</span><FormattedDate date={featuredPost.data.pubDate} /></div>
+							<a class:list={{ 'pinned-frame': featuredPost.data.pinned }} href={featuredPost.url}>
+								<div class="note-meta"><span>{featuredPost.categoryLabel}</span><FormattedDate date={featuredPost.data.pubDate} /></div>
 								<h3>{featuredPost.data.title}</h3>
 								<p class="note-description">{featuredPost.data.description}</p>
 								<span class="read-note">Read note <span aria-hidden="true">→</span></span>
@@ -65,8 +51,8 @@ const categoryLabel = (id: string) => id.split('/')[0].split('-').map((word) => 
 					)}
 					{remainingPosts.map((post) => (
 						<li class="note-row">
-							<a class:list={{ 'pinned-frame': post.data.pinned }} href={`/blog/${post.id}/`}>
-								<div class="note-meta"><span>{categoryLabel(post.id)}</span><FormattedDate date={post.data.pubDate} /></div>
+							<a class:list={{ 'pinned-frame': post.data.pinned }} href={post.url}>
+								<div class="note-meta"><span>{post.categoryLabel}</span><FormattedDate date={post.data.pubDate} /></div>
 								<h3>{post.data.title}</h3>
 								<p class="note-description">{post.data.description}</p>
 							</a>
@@ -75,9 +61,7 @@ const categoryLabel = (id: string) => id.split('/')[0].split('-').map((word) => 
 				</ul>
 			</section>
 		</main>
-		<Footer />
-	</body>
-</html>
+</PageShell>
 
 <style>
 	main.home-container { width: min(100% - 3rem, 960px); max-width: none; padding: 4rem 0 3rem; }
