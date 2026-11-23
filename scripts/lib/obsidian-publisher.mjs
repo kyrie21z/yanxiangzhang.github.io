@@ -449,11 +449,7 @@ function buildOwnedFileMap(manifest, blogRealDir) {
 }
 
 function isOwnedHashUnmodified(realFile, expectedHash) {
-	if (/^[0-9a-f]{64}$/i.test(expectedHash)) {
-		return sha256File(realFile) === expectedHash;
-	}
-	// Legacy manifests recorded source MD5 (32-hex) rather than rendered output SHA-256.
-	return /^[0-9a-f]{32}$/i.test(expectedHash);
+	return /^[0-9a-f]{64}$/i.test(expectedHash) && sha256File(realFile) === expectedHash;
 }
 
 function cleanScopedCategories({
@@ -483,7 +479,11 @@ function cleanScopedCategories({
 				const relKey = toPosixPath(relative(blogRealDir, realFile));
 				if (publishedKeys.has(relKey)) continue;
 				const expectedHash = ownedFiles.get(relKey);
-				if (!expectedHash || !isOwnedHashUnmodified(realFile, expectedHash)) continue;
+				if (!expectedHash) continue;
+				if (!isOwnedHashUnmodified(realFile, expectedHash)) {
+					log(`  [preserved] ${relKey} (content modified or legacy hash unverified)`);
+					continue;
+				}
 
 				if (!dryRun) unlinkSync(realFile);
 				log(`  [cleaned] ${relKey}`);

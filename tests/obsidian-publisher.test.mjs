@@ -374,7 +374,7 @@ describe('publishObsidianNotes', () => {
 		}
 	});
 
-	it('preserves hand-edited replacement files during cleanup while cleaning unmodified legacy-manifest files', () => {
+	it('preserves hand-edited files and unverified legacy MD5 entries while cleaning hash-verified absolute-path entries', () => {
 		const fx = createFixtureWorkspace();
 		try {
 			const manifestPath = join(fx.root, '.publish-manifest.json');
@@ -386,6 +386,10 @@ describe('publishObsidianNotes', () => {
 				join(fx.vaultDir, 'Replaced.md'),
 				'Originally synced note with enough text to be published first and later replaced by hand.',
 			);
+			writeFileSync(
+				join(fx.vaultDir, 'AbsTracked.md'),
+				'Another synced note whose manifest key will be stored as an absolute path with a verified sha256 hash.',
+			);
 
 			const baseOptions = {
 				mode: 'category-map',
@@ -394,30 +398,40 @@ describe('publishObsidianNotes', () => {
 				assetsDir: fx.assetsDir,
 				manifestPath,
 				resolveCategory: (name) =>
-					name === 'Keep.md' || name === 'Replaced.md' ? 'Personal-Insights' : null,
+					name === 'Keep.md' || name === 'Replaced.md' || name === 'AbsTracked.md'
+						? 'Personal-Insights'
+						: null,
 				managedCategories: ['Personal-Insights'],
 			};
 
 			publishObsidianNotes(baseOptions);
 
-			// Replace synced output with hand-authored content
+			// 1. Replace synced output with hand-authored content (must be preserved)
 			const replacedOut = join(fx.blogDir, 'Personal-Insights', 'Replaced.md');
 			writeFileSync(replacedOut, '---\ntitle: "Hand Edited"\n---\nMy manual rewrite.\n');
 
-			// Also inject a legacy absolute-path MD5 entry pointing to an old synced file
+			// 2. Inject an unverified legacy 32-hex MD5 entry (must be preserved fail-closed)
 			const legacyOut = join(fx.blogDir, 'Personal-Insights', 'Legacy.md');
 			writeFileSync(legacyOut, '---\ntitle: "Legacy"\n---\nOld synced note.\n');
+
+			// 3. Rewrite AbsTracked.md manifest key as an absolute path keeping its verified 64-hex sha256
+			const absOut = join(fx.blogDir, 'Personal-Insights', 'AbsTracked.md');
 			const savedManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+			const absHash = savedManifest.files['Personal-Insights/AbsTracked.md'];
+			delete savedManifest.files['Personal-Insights/AbsTracked.md'];
+			savedManifest.files[absOut] = absHash;
 			savedManifest.files[legacyOut] = '0123456789abcdef0123456789abcdef';
 			writeFileSync(manifestPath, JSON.stringify(savedManifest, null, 2));
 
-			// Remove Replaced.md from vault
+			// Remove Replaced.md and AbsTracked.md from vault
 			rmSync(join(fx.vaultDir, 'Replaced.md'));
+			rmSync(join(fx.vaultDir, 'AbsTracked.md'));
 			const after = publishObsidianNotes(baseOptions);
 
 			assert.equal(after.cleaned, 1);
 			assert.equal(existsSync(replacedOut), true);
-			assert.equal(existsSync(legacyOut), false);
+			assert.equal(existsSync(legacyOut), true);
+			assert.equal(existsSync(absOut), false);
 		} finally {
 			fx.cleanup();
 		}
